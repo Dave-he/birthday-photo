@@ -1,135 +1,252 @@
 'use client'
-
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Stars, Sparkles } from '@react-three/drei'
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
-import Tree from './Tree'
-import Ornament from './Ornament'
-import { AnimatePresence, motion } from 'framer-motion'
+import { OrbitControls, Float, Text, PerformanceMonitor, Stats } from '@react-three/drei'
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
+import { useEffect, useState, useRef, Suspense } from 'react'
+import { useStore } from '@/hooks/useStore'
+import { useRealtime } from '@/hooks/useRealtime'
+import { useAutoMode } from '@/hooks/useAutoMode'
+import { Photo } from '@/types'
 
-interface Photo {
-  id: string
-  image_url: string
-  title: string
-  description: string
-  position_index: number
-}
+// Components
+import SceneEnvironment from './SceneEnvironment'
+import SceneEffects from './SceneEffects'
+import SceneContent from './SceneContent'
+import SceneHUD from './SceneHUD'
+import Overlay from './Overlay'
+import PhotoModal from './PhotoModal'
 
-// Helper to calculate positions on a cone/tree shape
-// Spiral distribution
-const getPosition = (index: number, total: number): [number, number, number] => {
-  const y = 1.5 + (index / total) * 4; // Height from 1.5 to 5.5
-  const radius = 2.5 * (1 - (y - 1.5) / 4.5); // Radius decreases as y increases
-  const angle = index * 2.4; // Golden angle approx for spiral
-  
-  return [
-    Math.cos(angle) * radius,
-    y,
-    Math.sin(angle) * radius
-  ]
+// Color Palettes
+const PALETTES = {
+    christmas: {
+        bg: ['#0f172a', '#000000'], // Slate to Black
+        fog: '#050505',
+        accent: '#c2410c', // Orange/Red
+        text: '#fcd34d' // Amber
+    },
+    birthday: {
+        bg: ['#2e1065', '#000000'], // Violet to Black
+        fog: '#1e1b4b',
+        accent: '#d946ef', // Fuchsia
+        text: '#a855f7' // Purple
+    },
+    romantic: {
+        bg: ['#4a044e', '#000000'], // Fuchsia Dark to Black
+        fog: '#2e0225',
+        accent: '#ec4899', // Pink
+        text: '#f472b6'
+    },
+    party: {
+        bg: ['#1e3a8a', '#000000'], // Blue to Black
+        fog: '#172554',
+        accent: '#3b82f6', // Blue
+        text: '#60a5fa'
+    }
 }
 
 export default function Scene() {
-  const [photos, setPhotos] = useState<Photo[]>([])
+  const { 
+      photos, scenes, settings, currentSceneId, isLoading,
+      fetchInitialData, setCurrentSceneId
+  } = useStore()
+  
+  useRealtime()
+
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [hasStarted, setHasStarted] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [qualityPreset, setQualityPreset] = useState<'auto' | 'low' | 'high'>('auto')
+  const [particleMultiplierOverride, setParticleMultiplierOverride] = useState<number | null>(null)
+  const [rotateSpeedOverride, setRotateSpeedOverride] = useState<number | null>(null)
+
+  // Use Custom Hook for Mode Logic
+  const { mode, setMode, galleryLayout, setGalleryLayout } = useAutoMode(hasStarted)
+  const isLow = (settings?.low_quality_mode === true) || qualityPreset === 'low'
+  const pmBase = settings?.particle_multiplier ?? (isLow ? 0.5 : 1)
+  const pm = Math.max(0.1, Math.min(particleMultiplierOverride ?? pmBase, 2))
+  const rotateBase = settings?.rotate_speed ?? (isLow ? 0.5 : 0.8)
+  const rotate = rotateSpeedOverride ?? rotateBase
+  
+  const currentPalette = PALETTES[mode]
 
   useEffect(() => {
-    const fetchPhotos = async () => {
-      const { data } = await supabase
-        .from('photos')
-        .select('*')
-        .order('position_index', { ascending: true })
-        .limit(50)
-      
-      if (data) setPhotos(data)
+    // Check URL params for deep linking (Preview feature)
+    if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        const sceneId = params.get('sceneId')
+        
+        fetchInitialData().then(() => {
+            if (sceneId) {
+                setCurrentSceneId(sceneId)
+            }
+        })
     }
+  }, [fetchInitialData, setCurrentSceneId])
 
-    fetchPhotos()
-  }, [])
+  const handleStart = () => {
+      setHasStarted(true)
+      if (audioRef.current) {
+          audioRef.current.play().then(() => {
+              setIsPlaying(true)
+          }).catch(e => console.log("Audio play failed", e))
+      }
+  }
+
+  // Handle Music
+  useEffect(() => {
+    if (settings?.bg_music_url) {
+      audioRef.current = new Audio(settings.bg_music_url)
+      audioRef.current.loop = true
+      audioRef.current.volume = 0.5
+    }
+    
+    return () => {
+        if(audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+    }
+  }, [settings?.bg_music_url])
+
+  const toggleMusic = () => {
+    if (!audioRef.current) return
+    
+    if (isPlaying) {
+      audioRef.current.pause()
+    } else {
+      audioRef.current.play().catch(e => console.log("Audio play failed (user interaction needed)", e))
+    }
+    setIsPlaying(!isPlaying)
+  }
+
+  const getTitle = () => {
+      const sceneName = scenes.find(s => s.id === currentSceneId)?.name;
+      
+      switch(mode) {
+          case 'birthday': return sceneName || "Happy Birthday!";
+          case 'romantic': return sceneName || "Forever Love";
+          case 'party': return sceneName || "Let's Party!";
+          default: return sceneName || settings?.greeting_title || "Merry Christmas!";
+      }
+  }
 
   return (
     <>
-      <div className="w-full h-screen bg-gradient-to-b from-slate-900 to-black">
-        <Canvas camera={{ position: [0, 2, 12], fov: 50 }}>
-          <fog attach="fog" args={['#000', 10, 25]} />
-          <ambientLight intensity={0.3} />
-          <pointLight position={[10, 10, 10]} intensity={1} />
-          <pointLight position={[-10, 5, -10]} intensity={0.5} color="blue" />
-          
-          <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-          <Sparkles count={200} scale={10} size={2} speed={0.4} opacity={0.5} color="#fff" />
-          
-          <OrbitControls 
-            enableZoom={true} 
-            enablePan={false} 
-            maxPolarAngle={Math.PI / 1.5} 
-            minPolarAngle={Math.PI / 4}
-            autoRotate={!selectedPhoto}
-            autoRotateSpeed={0.5}
-          />
-          
-          <Tree />
-          
-          {photos.map((photo, index) => (
-            <Ornament
-              key={photo.id}
-              id={photo.id}
-              position={getPosition(index, photos.length || 1)}
-              imageUrl={photo.image_url}
-              title={photo.title}
-              description={photo.description}
-              isSelected={selectedPhoto?.id === photo.id}
-              onClick={() => setSelectedPhoto(photo)}
+      <Overlay 
+         onStart={handleStart} 
+         isLoading={isLoading} 
+         title={settings?.greeting_title || "Merry Christmas!"} 
+      />
+
+      {/* 2D HUD Layer */}
+      <SceneHUD 
+        hasStarted={hasStarted}
+        scenes={scenes}
+        currentSceneId={currentSceneId}
+        onSceneChange={setCurrentSceneId}
+        mode={mode}
+        onModeChange={setMode}
+        galleryLayout={galleryLayout}
+        onLayoutChange={setGalleryLayout}
+        settings={settings}
+        isPlaying={isPlaying}
+        onToggleMusic={toggleMusic}
+        qualityPreset={qualityPreset}
+        onQualityPresetChange={setQualityPreset}
+        particleMultiplier={pm}
+        onParticleMultiplierChange={setParticleMultiplierOverride}
+        rotateSpeed={rotate}
+        onRotateSpeedChange={setRotateSpeedOverride}
+      />
+
+      <div 
+        className="w-full h-screen transition-colors duration-1000 ease-in-out"
+        style={{
+            background: `linear-gradient(to bottom, ${currentPalette.bg[0]}, ${currentPalette.bg[1]})`
+        }}
+      >
+        <Canvas 
+          camera={{ position: [0, 2, 14], fov: 45 }} 
+          gl={{ antialias: false }} 
+          dpr={[1, 1.5]}
+          shadows={!isLow}
+          frameloop={isLow ? 'demand' : 'always'}
+        >
+          <Suspense fallback={null}>
+            {/* Dev Performance Stats */}
+            {process.env.NODE_ENV === 'development' && <Stats className="!left-auto !right-0 !top-0" />}
+
+            <PerformanceMonitor 
+              onDecline={() => setQualityPreset('low')} 
+              // onAccept doesn't exist in PerformanceMonitor types in this version?
+              // But we can monitor the onChange factor
+              onChange={({ factor }) => {
+                if (factor > 0.9 && qualityPreset === 'low') setQualityPreset('high')
+              }}
             />
-          ))}
+            
+            <SceneEnvironment palette={currentPalette} />
+
+            <SceneEffects mode={mode} settings={settings} particleMultiplier={pm} lowQuality={isLow} />
+            
+            <OrbitControls 
+                enableZoom={true} 
+                enablePan={false} 
+                maxPolarAngle={Math.PI / 1.4} 
+                minPolarAngle={Math.PI / 3}
+                autoRotate={!selectedPhoto && hasStarted}
+                autoRotateSpeed={rotate}
+                maxDistance={25}
+                minDistance={5}
+            />
+            
+            <SceneContent 
+                mode={mode} 
+                photos={photos} 
+                selectedPhoto={selectedPhoto} 
+                onSelectPhoto={setSelectedPhoto} 
+                galleryLayout={galleryLayout} 
+            />
+
+            {/* Floating 3D Text */}
+            <Float speed={4} rotationIntensity={0.5} floatIntensity={1} floatingRange={[0, 1]}>
+                <Text
+                    fontSize={1.5}
+                    color={currentPalette.text}
+                    position={[0, 6.5, 0]}
+                    anchorX="center"
+                    anchorY="middle"
+                    outlineWidth={0.04}
+                    outlineColor={currentPalette.accent}
+                    maxWidth={10}
+                    textAlign="center"
+                    font="https://fonts.gstatic.com/s/raleway/v14/1Ptrg8zYS_SKggPNwK4vaqI.woff"
+                >
+                    {getTitle()}
+                    <meshStandardMaterial 
+                        emissive={currentPalette.accent} 
+                        emissiveIntensity={2} 
+                        toneMapped={false} 
+                        color={currentPalette.text}
+                    />
+                </Text>
+            </Float>
+
+            {/* Post Processing - Disable expensive effects in low quality */}
+            <EffectComposer enabled={!isLow} enableNormalPass={false}>
+                <Bloom luminanceThreshold={0.2} mipmapBlur intensity={1.5} radius={0.4} />
+                <Vignette eskil={false} offset={0.1} darkness={1.1} />
+            </EffectComposer>
+          </Suspense>
         </Canvas>
       </div>
 
-      {/* UI Overlay for Selected Photo */}
-      <AnimatePresence>
-        {selectedPhoto && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setSelectedPhoto(null)}
-          >
-            <motion.div 
-              initial={{ scale: 0.8, y: 50 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 50 }}
-              className="bg-white/10 border border-white/20 p-6 rounded-2xl max-w-2xl w-full text-white shadow-2xl relative"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button 
-                className="absolute top-4 right-4 text-white/50 hover:text-white"
-                onClick={() => setSelectedPhoto(null)}
-              >
-                ✕
-              </button>
-              
-              <div className="flex flex-col md:flex-row gap-6">
-                <div className="w-full md:w-1/2 aspect-square relative rounded-lg overflow-hidden border border-white/10">
-                   <img 
-                     src={selectedPhoto.image_url} 
-                     alt={selectedPhoto.title} 
-                     className="object-cover w-full h-full"
-                   />
-                </div>
-                
-                <div className="flex-1 flex flex-col justify-center">
-                   <h2 className="text-3xl font-serif mb-4 text-amber-300">{selectedPhoto.title}</h2>
-                   <p className="text-lg leading-relaxed text-gray-200 font-light italic">
-                     "{selectedPhoto.description}"
-                   </p>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Selected Photo Modal */}
+      <PhotoModal 
+        selectedPhoto={selectedPhoto}
+        onClose={() => setSelectedPhoto(null)}
+      />
     </>
   )
 }

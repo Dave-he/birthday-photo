@@ -1,17 +1,30 @@
-import { Edit, useForm } from "@refinedev/antd";
-import { Form, Input, InputNumber, Checkbox, Upload } from "antd";
+import { Edit, useForm, useSelect } from "@refinedev/antd";
+import { Form, Input, InputNumber, Checkbox, Upload, Select } from "antd";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { UploadOutlined } from "@ant-design/icons";
-import { useState } from "react";
 
 export const PhotoEdit: React.FC = () => {
   const { formProps, saveButtonProps } = useForm();
+  
+  // Select for Scenes
+  const { selectProps: sceneSelectProps } = useSelect({
+    resource: "scenes",
+    optionLabel: "name",
+    optionValue: "id",
+  });
+
+  // Select for Members
+  const { selectProps: memberSelectProps } = useSelect({
+    resource: "members",
+    optionLabel: "name",
+    optionValue: "id",
+  });
   
   // Custom Request logic reused (in a real app, extract this to a hook)
   const customRequest = async ({ file, onSuccess, onError }: any) => {
     try {
       const fileName = `${Date.now()}-${file.name}`;
-      const { data, error } = await supabaseClient.storage
+      const { error } = await supabaseClient.storage
         .from("photos")
         .upload(fileName, file);
 
@@ -56,6 +69,31 @@ export const PhotoEdit: React.FC = () => {
               </p>
               <p className="ant-upload-text">Click or drag file to this area to upload</p>
            </Upload.Dragger>
+        </Form.Item>
+
+        <div style={{ display: 'flex', gap: '16px' }}>
+            <Form.Item
+                label="Scene"
+                name="scene_id"
+                style={{ flex: 1 }}
+            >
+                <Select {...sceneSelectProps} allowClear placeholder="Select a scene" />
+            </Form.Item>
+
+            <Form.Item
+                label="Member (User)"
+                name="member_id"
+                style={{ flex: 1 }}
+            >
+                <Select {...memberSelectProps} allowClear placeholder="Select a member" />
+            </Form.Item>
+        </div>
+
+        <Form.Item
+          label="Tags"
+          name="tags"
+        >
+          <Select mode="tags" style={{ width: '100%' }} placeholder="Add tags" />
         </Form.Item>
 
         <Form.Item
