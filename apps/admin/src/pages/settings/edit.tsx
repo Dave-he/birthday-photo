@@ -2,7 +2,6 @@ import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, InputNumber, Switch, Upload, Button, message, Space, Card, Typography, Divider, Row, Col } from "antd";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { UploadOutlined, MobileOutlined, DesktopOutlined, VideoCameraOutlined } from "@ant-design/icons";
-import { UploadRequestOption } from "rc-upload/lib/interface";
 
 const { Text } = Typography;
 
@@ -23,13 +22,13 @@ export const SettingsEdit: React.FC = () => {
     // We treat settings as a singleton, so we always try to edit the first row
     const { formProps, saveButtonProps } = useForm<SettingsFormValues>();
     
-    const customRequest = async ({ file, onSuccess, onError }: UploadRequestOption) => {
+    const customRequest = async (options: any, _: any) => {
         try {
-            const fileObj = file as File;
-            const fileName = `music-${Date.now()}-${fileObj.name}`;
+            const file = options.file as File;
+            const fileName = `music-${Date.now()}-${file.name}`;
             const { error } = await supabaseClient.storage
                 .from("photos") // Reusing photos bucket for now, ideally 'assets'
-                .upload(fileName, fileObj);
+                .upload(fileName, file);
 
             if (error) throw error;
 
@@ -37,14 +36,14 @@ export const SettingsEdit: React.FC = () => {
                 .from("photos")
                 .getPublicUrl(fileName);
             
-            if (onSuccess) onSuccess(urlData.publicUrl);
+            if (options.onSuccess) options.onSuccess(urlData.publicUrl);
             message.success("Music uploaded successfully!");
             
             // Auto fill the URL input
             formProps.form?.setFieldValue("bg_music_url", urlData.publicUrl);
         } catch (error) {
             console.error(error);
-            if (onError) onError(error as Error);
+            if (options.onError) options.onError(error as Error);
             message.error("Upload failed.");
         }
     };

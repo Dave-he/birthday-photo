@@ -61,9 +61,10 @@ const MagicParticlesMaterial = {
 interface MagicParticlesProps {
   count?: number
   color?: string
+  size?: number
 }
 
-export default function MagicParticles({ count = 100, color = '#ffd700' }: MagicParticlesProps) {
+export default function MagicParticles({ count = 100, color = '#ffd700', size = 0.2 }: MagicParticlesProps) {
   const points = useRef<THREE.Points>(null)
   
   // Create shader material
@@ -72,7 +73,7 @@ export default function MagicParticles({ count = 100, color = '#ffd700' }: Magic
       uniforms: {
         uTime: { value: 0 },
         uColor: { value: new THREE.Color(color) },
-        uSize: { value: 50.0 }, // Base size
+        uSize: { value: size * 250 }, // Scale size to appropriate range
         uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 1 }
       },
       vertexShader: MagicParticlesMaterial.vertexShader,
@@ -81,7 +82,7 @@ export default function MagicParticles({ count = 100, color = '#ffd700' }: Magic
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
-  }, [color])
+  }, [color, size])
 
   // Generate attributes
   const { positions, scales, randomness, speeds } = useMemo(() => {

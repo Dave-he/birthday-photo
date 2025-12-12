@@ -2,7 +2,7 @@ import { Refine } from "@refinedev/core";
 import { ThemedLayout, ErrorComponent, RefineThemes, useNotificationProvider } from "@refinedev/antd";
 import { dataProvider } from "@refinedev/supabase";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
-import routerBindings, { NavigateToResource, UnsavedChangesNotifier, DocumentTitleHandler } from "@refinedev/react-router-v6";
+import routerBindings, { UnsavedChangesNotifier, DocumentTitleHandler } from "@refinedev/react-router-v6";
 import { ConfigProvider, App as AntdApp } from "antd";
 import "@refinedev/antd/dist/reset.css";
 
@@ -30,7 +30,6 @@ function App() {
             dataProvider={dataProvider(supabaseClient)}
             routerProvider={routerBindings}
             notificationProvider={useNotificationProvider}
-            dashboard={DashboardPage}
             resources={[
               {
                 name: "photos",

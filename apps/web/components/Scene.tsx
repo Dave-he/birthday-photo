@@ -68,6 +68,55 @@ export default function Scene() {
   const rotateBase = settings?.rotate_speed ?? (isLow ? 0.5 : 0.8)
   const rotate = rotateSpeedOverride ?? rotateBase
   
+  // Adaptive DPR based on device performance and screen resolution
+  const getAdaptiveDpr = () => {
+    if (isLow) return 1 // Low quality mode always uses DPR 1
+    if (typeof window === 'undefined') return [1, 1.5] // Fallback for SSR
+    
+    const devicePixelRatio = window.devicePixelRatio
+    const screenWidth = window.screen.width
+    
+    // High-end devices with high resolution
+    if (devicePixelRatio >= 2.5 && screenWidth >= 1440) return 2
+    // Medium-high end devices
+    if (devicePixelRatio >= 2 && screenWidth >= 1024) return 1.5
+    // Low-mid range devices
+    if (devicePixelRatio >= 1.5) return 1.25
+    // Low-end devices
+    return 1
+  }
+  
+  const adaptiveDpr = getAdaptiveDpr()
+  
+  // Adaptive Events configuration based on device performance
+  const getAdaptiveEventsConfig = () => {
+    if (isLow) {
+      return {
+        enableDamping: false, // Disable damping for better performance
+        dampingFactor: 0.05,
+        rotateSpeed: 0.5,
+        zoomSpeed: 0.5,
+        panSpeed: 0.5,
+        enablePan: false, // Disable panning on low performance
+        enableZoom: true,
+        touchSensitivity: 1.5 // Reduce touch sensitivity on low performance
+      }
+    }
+    
+    return {
+      enableDamping: true,
+      dampingFactor: 0.05,
+      rotateSpeed: 0.8,
+      zoomSpeed: 0.8,
+      panSpeed: 0.8,
+      enablePan: true,
+      enableZoom: true,
+      touchSensitivity: 1.0
+    }
+  }
+  
+  const adaptiveEventsConfig = getAdaptiveEventsConfig()
+  
   const currentPalette = PALETTES[mode]
 
   useEffect(() => {
@@ -169,7 +218,7 @@ export default function Scene() {
         <Canvas 
           camera={{ position: [0, 2, 14], fov: 45 }} 
           gl={{ antialias: false }} 
-          dpr={[1, 1.5]}
+          dpr={adaptiveDpr}
           shadows={!isLow}
           frameloop={isLow ? 'demand' : 'always'}
         >
@@ -191,14 +240,20 @@ export default function Scene() {
             <SceneEffects mode={mode} settings={settings} particleMultiplier={pm} lowQuality={isLow} />
             
             <OrbitControls 
-                enableZoom={true} 
-                enablePan={false} 
+                enableZoom={adaptiveEventsConfig.enableZoom} 
+                enablePan={adaptiveEventsConfig.enablePan} 
                 maxPolarAngle={Math.PI / 1.4} 
                 minPolarAngle={Math.PI / 3}
                 autoRotate={!selectedPhoto && hasStarted}
                 autoRotateSpeed={rotate}
                 maxDistance={25}
                 minDistance={5}
+                enableDamping={adaptiveEventsConfig.enableDamping}
+                dampingFactor={adaptiveEventsConfig.dampingFactor}
+                rotateSpeed={adaptiveEventsConfig.rotateSpeed}
+                zoomSpeed={adaptiveEventsConfig.zoomSpeed}
+                panSpeed={adaptiveEventsConfig.panSpeed}
+                touchSensitivity={adaptiveEventsConfig.touchSensitivity}
             />
             
             <SceneContent 
@@ -233,11 +288,39 @@ export default function Scene() {
                 </Text>
             </Float>
 
-            {/* Post Processing - Disable expensive effects in low quality */}
-            <EffectComposer enabled={!isLow} enableNormalPass={false}>
-                <Bloom luminanceThreshold={0.2} mipmapBlur intensity={1.5} radius={0.4} />
-                <Vignette eskil={false} offset={0.1} darkness={1.1} />
-            </EffectComposer>
+            {/* Post Processing - Adaptive quality based on performance */}
+            {(() => {
+                // Very low quality - disable all post processing
+                if (pm < 0.3) {
+                    return null;
+                }
+                // Low quality - minimal post processing
+                else if (pm < 0.7) {
+                    return (
+                        <EffectComposer enabled={true} enableNormalPass={false}>
+                            <Vignette eskil={false} offset={0.15} darkness={1.0} />
+                        </EffectComposer>
+                    );
+                }
+                // Medium quality - standard post processing
+                else if (pm < 1.5) {
+                    return (
+                        <EffectComposer enabled={true} enableNormalPass={false}>
+                            <Bloom luminanceThreshold={0.3} mipmapBlur intensity={1.0} radius={0.3} />
+                            <Vignette eskil={false} offset={0.12} darkness={1.05} />
+                        </EffectComposer>
+                    );
+                }
+                // High quality - full post processing
+                else {
+                    return (
+                        <EffectComposer enabled={true} enableNormalPass={false}>
+                            <Bloom luminanceThreshold={0.2} mipmapBlur intensity={1.5} radius={0.4} />
+                            <Vignette eskil={false} offset={0.1} darkness={1.1} />
+                        </EffectComposer>
+                    );
+                }
+            })()}
           </Suspense>
         </Canvas>
       </div>
