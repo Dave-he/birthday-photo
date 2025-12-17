@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { RealtimeService } from '@birthday-photo/data'
 import { useStore } from './useStore'
-import { Photo, Scene, Settings } from '@/types'
+import { Photo, Scene, Settings } from '@birthday-photo/data'
 
 export const useRealtime = () => {
   const { 
@@ -11,43 +11,33 @@ export const useRealtime = () => {
   } = useStore()
 
   useEffect(() => {
-    // Channel for all DB changes we care about
-    const channel = supabase
-      .channel('db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'photos' },
-        (payload) => {
-          console.log('Realtime photo change:', payload)
-          if (payload.eventType === 'INSERT') addPhoto(payload.new as Photo)
-          if (payload.eventType === 'UPDATE') updatePhoto(payload.new as Photo)
-          if (payload.eventType === 'DELETE') removePhoto(payload.old.id)
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'settings' },
-        (payload) => {
-          console.log('Realtime settings change:', payload)
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-              setSettings(payload.new as Settings)
+    // Create a realtime service instance
+    const realtimeService = new RealtimeService({
+      listeners: {
+        onPhotoChange: (event, photo) => {
+          console.log('Realtime photo change:', event, photo)
+          if (event === 'INSERT') addPhoto(photo)
+          if (event === 'UPDATE') updatePhoto(photo)
+          if (event === 'DELETE') removePhoto(photo.id)
+        },
+        onSettingsChange: (event, settings) => {
+          console.log('Realtime settings change:', event, settings)
+          if (event === 'UPDATE' || event === 'INSERT') {
+            setSettings(settings)
           }
+        },
+        onSceneChange: (event, scene) => {
+          console.log('Realtime scene change:', event, scene)
+          if (event === 'INSERT') addScene(scene)
+          if (event === 'UPDATE') updateScene(scene)
+          if (event === 'DELETE') removeScene(scene.id)
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'scenes' },
-        (payload) => {
-          console.log('Realtime scene change:', payload)
-          if (payload.eventType === 'INSERT') addScene(payload.new as Scene)
-          if (payload.eventType === 'UPDATE') updateScene(payload.new as Scene)
-          if (payload.eventType === 'DELETE') removeScene(payload.old.id)
-        }
-      )
-      .subscribe()
+      }
+    })
 
     return () => {
-      supabase.removeChannel(channel)
+      // Cleanup the realtime service
+      realtimeService.destroy()
     }
   }, [addPhoto, updatePhoto, removePhoto, setSettings, addScene, updateScene, removeScene])
 }

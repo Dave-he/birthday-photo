@@ -6,7 +6,8 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "jsx": "react-jsx",
-    "types": ["node"],
-    "forceConsistentCasingInFileNames": true
+    "types": ["node", "react", "react-dom"],
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"]
   }
 }

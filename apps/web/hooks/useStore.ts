@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { supabase } from '@/lib/supabaseClient'
-import { Photo, Scene, Settings } from '@/types'
+import { dataService } from '@birthday-photo/data'
+import { Photo, Scene, Settings } from '@birthday-photo/data'
 
 interface AppState {
   photos: Photo[]
@@ -39,16 +39,10 @@ export const useStore = create<AppState>((set, get) => ({
     set({ isLoading: true })
     
     // Fetch Scenes
-    const { data: scenes } = await supabase
-      .from('scenes')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data: scenes } = await dataService.getScenes()
     
     // Fetch Settings
-    const { data: settings } = await supabase
-      .from('settings')
-      .select('*')
-      .single()
+    const settings = await dataService.getSettings()
 
     set({ 
         scenes: scenes || [], 
@@ -63,20 +57,15 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   fetchPhotos: async (sceneId) => {
-    let query = supabase
-        .from('photos')
-        .select('*, members(*)')
-        .order('position_index', { ascending: true })
+    const { data } = await dataService.getPhotos()
+    
+    // Filter photos by scene if sceneId is provided
+    const filteredPhotos = sceneId 
+      ? data.filter(photo => photo.scene_id === sceneId)
+      : data
 
-    if (sceneId) {
-        query = query.eq('scene_id', sceneId)
-    } else {
-        query = query.limit(50)
-    }
-
-    const { data } = await query
-    if (data) {
-        set({ photos: data })
+    if (filteredPhotos) {
+        set({ photos: filteredPhotos })
     }
   },
 

@@ -1,0 +1,15 @@
+{
+  "name": "@birthday-photo/tsconfig",
+  "version": "1.0.0",
+  "description": "Shared TypeScript configuration for birthday photo application",
+  "main": "tsconfig.base.json",
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf dist"
+  },
+  "exports": {
+    ".": {
+      "types": "./tsconfig.base.json"
+    }
+  }
+}
