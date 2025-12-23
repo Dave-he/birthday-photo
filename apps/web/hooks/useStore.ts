@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { dataService } from '@birthday-photo/data'
-import { Photo, Scene, Settings } from '@birthday-photo/data'
+import { dataService } from '@/lib/dataService'
+import { Photo, Scene, Settings } from '@/types'
 
 interface AppState {
   photos: Photo[]

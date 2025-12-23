@@ -6,7 +6,7 @@ import { useEffect, useState, useRef, Suspense } from 'react'
 import { useStore } from '@/hooks/useStore'
 import { useRealtime } from '@/hooks/useRealtime'
 import { useAutoMode } from '@/hooks/useAutoMode'
-import { Photo } from '@birthday-photo/data'
+import { Photo } from '@/types'
 import Image from 'next/image'
 
 // Components
@@ -14,7 +14,8 @@ import SceneEnvironment from './SceneEnvironment'
 import SceneEffects from './SceneEffects'
 import SceneContent from './SceneContent'
 import SceneHUD from './SceneHUD'
-import { Overlay, PhotoModal } from '@birthday-photo/ui'
+import Overlay from './Overlay'
+import PhotoModal from './PhotoModal'
 
 // Color Palettes
 const PALETTES = {
@@ -326,7 +327,6 @@ export default function Scene() {
       <PhotoModal 
         selectedPhoto={selectedPhoto}
         onClose={() => setSelectedPhoto(null)}
-        Image={Image as any}
       />
     </>
   )

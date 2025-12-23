@@ -1,5 +1,4 @@
 {
-  "extends": "../../packages/tsconfig/tsconfig.base.json",
   "compilerOptions": {
     "target": "es5",
     "lib": [
@@ -8,8 +7,13 @@
       "esnext"
     ],
     "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
     "noEmit": true,
+    "esModuleInterop": true,
     "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
     "plugins": [

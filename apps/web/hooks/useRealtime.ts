@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
-import { RealtimeService } from '@birthday-photo/data'
+import { RealtimeService } from '@/lib/RealtimeService'
 import { useStore } from './useStore'
-import { Photo, Scene, Settings } from '@birthday-photo/data'
 
 export const useRealtime = () => {
   const { 

@@ -1,7 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Scene as SceneType, Settings, supabase } from '@birthday-photo/data'
+import { Scene as SceneType, Settings } from '@/types'
+import { supabase } from '@/lib/supabaseClient'
 import { useState } from 'react'
 
 type SceneMode = 'christmas' | 'birthday' | 'romantic' | 'party'
