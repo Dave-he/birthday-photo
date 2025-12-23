@@ -6,8 +6,21 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 const nextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
+  },
+  // 优化生产构建
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
+  swcMinify: true,
 };
 
 export default withBundleAnalyzer(nextConfig);

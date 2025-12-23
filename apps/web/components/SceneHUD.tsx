@@ -80,7 +80,7 @@ export default function SceneHUD({
                 // default_scene_id: currentSceneId, 
                 // theme_mode: mode 
             }) 
-            .eq('id', settings?.id) // Update current settings row
+            .eq('id', settings?.id || '') // Update current settings row
 
           if (error) throw error
 

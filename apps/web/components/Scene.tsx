@@ -69,7 +69,7 @@ export default function Scene() {
   const rotate = rotateSpeedOverride ?? rotateBase
   
   // Adaptive DPR based on device performance and screen resolution
-  const getAdaptiveDpr = () => {
+  const getAdaptiveDpr = (): number | [number, number] => {
     if (isLow) return 1 // Low quality mode always uses DPR 1
     if (typeof window === 'undefined') return [1, 1.5] // Fallback for SSR
     
@@ -98,8 +98,7 @@ export default function Scene() {
         zoomSpeed: 0.5,
         panSpeed: 0.5,
         enablePan: false, // Disable panning on low performance
-        enableZoom: true,
-        touchSensitivity: 1.5 // Reduce touch sensitivity on low performance
+        enableZoom: true
       }
     }
     
@@ -110,8 +109,7 @@ export default function Scene() {
       zoomSpeed: 0.8,
       panSpeed: 0.8,
       enablePan: true,
-      enableZoom: true,
-      touchSensitivity: 1.0
+      enableZoom: true
     }
   }
   
@@ -253,7 +251,6 @@ export default function Scene() {
                 rotateSpeed={adaptiveEventsConfig.rotateSpeed}
                 zoomSpeed={adaptiveEventsConfig.zoomSpeed}
                 panSpeed={adaptiveEventsConfig.panSpeed}
-                touchSensitivity={adaptiveEventsConfig.touchSensitivity}
             />
             
             <SceneContent 
@@ -329,7 +326,7 @@ export default function Scene() {
       <PhotoModal 
         selectedPhoto={selectedPhoto}
         onClose={() => setSelectedPhoto(null)}
-        Image={Image}
+        Image={Image as any}
       />
     </>
   )
