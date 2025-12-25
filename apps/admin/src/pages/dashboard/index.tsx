@@ -47,7 +47,7 @@ export const DashboardPage: React.FC = () => {
             {/* KPI Cards */}
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={8}>
-                    <Card bordered={false}>
+                    <Card variant="borderless">
                         <Statistic
                             title="Total Photos"
                             value={photosData?.total}
@@ -57,7 +57,7 @@ export const DashboardPage: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={24} sm={8}>
-                    <Card bordered={false}>
+                    <Card variant="borderless">
                         <Statistic
                             title="Active Scenes"
                             value={scenesData?.total}
@@ -67,7 +67,7 @@ export const DashboardPage: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={24} sm={8}>
-                    <Card bordered={false}>
+                    <Card variant="borderless">
                         <Statistic
                             title="Members"
                             value={membersData?.total}
@@ -83,7 +83,7 @@ export const DashboardPage: React.FC = () => {
                 <Col xs={24} lg={16}>
                     <Card 
                         title="Recent Uploads" 
-                        bordered={false}
+                        variant="borderless"
                         extra={<Button type="link" onClick={() => list("photos")}>View All <ArrowRightOutlined /></Button>}
                     >
                         <Table 
@@ -112,7 +112,7 @@ export const DashboardPage: React.FC = () => {
 
                 {/* Quick Actions & System Info */}
                 <Col xs={24} lg={8}>
-                    <Card title="Quick Actions" bordered={false} style={{ marginBottom: 16 }}>
+                    <Card title="Quick Actions" variant="borderless" style={{ marginBottom: 16 }}>
                         <Space direction="vertical" style={{ width: '100%' }}>
                             <Button type="primary" block icon={<PictureOutlined />} onClick={() => list("photos")}>
                                 Manage Photos
@@ -126,7 +126,7 @@ export const DashboardPage: React.FC = () => {
                         </Space>
                     </Card>
 
-                    <Card title="System Status" bordered={false}>
+                    <Card title="System Status" variant="borderless">
                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                             <Text>System Status</Text>
                             <Text type="success">Operational</Text>

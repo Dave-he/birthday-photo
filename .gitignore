@@ -49,3 +49,5 @@ Thumbs.db
 # Typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.kwaipilot
