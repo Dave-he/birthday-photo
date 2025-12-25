@@ -14,23 +14,31 @@ export const DashboardPage: React.FC = () => {
     const { list } = useNavigation();
 
     // Fetch stats
-    const { data: photosData, isLoading: isLoadingPhotos } = useList({
+    const { result: photosData, query: {
+        isLoading: isLoadingPhotos
+    } } = useList({
         resource: "photos",
         pagination: { pageSize: 1, mode: "server" },
     });
 
-    const { data: scenesData, isLoading: isLoadingScenes } = useList({
+    const { result: scenesData, query: {
+        isLoading: isLoadingScenes
+    } } = useList({
         resource: "scenes",
         pagination: { pageSize: 1, mode: "server" },
     });
 
-    const { data: membersData, isLoading: isLoadingMembers } = useList({
+    const { result: membersData, query: {
+        isLoading: isLoadingMembers
+    } } = useList({
         resource: "members",
         pagination: { pageSize: 1, mode: "server" },
     });
 
     // Fetch recent photos for the list
-    const { data: recentPhotos, isLoading: isLoadingRecent } = useList({
+    const { result: recentPhotos, query: {
+        isLoading: isLoadingRecent
+    } } = useList({
         resource: "photos",
         pagination: { pageSize: 5, mode: "server" },
         sorters: [{ field: "created_at", order: "desc" }],
