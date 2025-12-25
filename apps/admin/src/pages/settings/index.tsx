@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router";
 import { supabaseClient } from "../../utility/supabaseClient"
 
 export const SettingsIndex: React.FC = () => {

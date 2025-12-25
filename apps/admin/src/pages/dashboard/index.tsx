@@ -1,4 +1,5 @@
-import { useList, useNavigation } from "@refinedev/core";
+import { useList } from "@refinedev/core";
+import { useGo } from "@refinedev/core";
 import { Row, Col, Card, Statistic, Table, Typography, Space, Button } from "antd";
 import { 
     PictureOutlined, 
@@ -11,34 +12,26 @@ import { CONFIG } from "../../config";
 const { Title, Text } = Typography;
 
 export const DashboardPage: React.FC = () => {
-    const { list } = useNavigation();
+    const go = useGo();
 
     // Fetch stats
-    const { result: photosData, query: {
-        isLoading: isLoadingPhotos
-    } } = useList({
+    const { data: photosData, isLoading: isLoadingPhotos } = useList({
         resource: "photos",
         pagination: { pageSize: 1, mode: "server" },
     });
 
-    const { result: scenesData, query: {
-        isLoading: isLoadingScenes
-    } } = useList({
+    const { data: scenesData, isLoading: isLoadingScenes } = useList({
         resource: "scenes",
         pagination: { pageSize: 1, mode: "server" },
     });
 
-    const { result: membersData, query: {
-        isLoading: isLoadingMembers
-    } } = useList({
+    const { data: membersData, isLoading: isLoadingMembers } = useList({
         resource: "members",
         pagination: { pageSize: 1, mode: "server" },
     });
 
     // Fetch recent photos for the list
-    const { result: recentPhotos, query: {
-        isLoading: isLoadingRecent
-    } } = useList({
+    const { data: recentPhotos, isLoading: isLoadingRecent } = useList({
         resource: "photos",
         pagination: { pageSize: 5, mode: "server" },
         sorters: [{ field: "created_at", order: "desc" }],
@@ -92,7 +85,7 @@ export const DashboardPage: React.FC = () => {
                     <Card 
                         title="Recent Uploads" 
                         variant="borderless"
-                        extra={<Button type="link" onClick={() => list("photos")}>View All <ArrowRightOutlined /></Button>}
+                        extra={<Button type="link" onClick={() => go({ to: "/photos" })}>View All <ArrowRightOutlined /></Button>}
                     >
                         <Table 
                             dataSource={recentPhotos?.data} 
@@ -122,10 +115,10 @@ export const DashboardPage: React.FC = () => {
                 <Col xs={24} lg={8}>
                     <Card title="Quick Actions" variant="borderless" style={{ marginBottom: 16 }}>
                         <Space direction="vertical" style={{ width: '100%' }}>
-                            <Button type="primary" block icon={<PictureOutlined />} onClick={() => list("photos")}>
+                            <Button type="primary" block icon={<PictureOutlined />} onClick={() => go({ to: "/photos" })}>
                                 Manage Photos
                             </Button>
-                            <Button block icon={<GlobalOutlined />} onClick={() => list("scenes")}>
+                            <Button block icon={<GlobalOutlined />} onClick={() => go({ to: "/scenes" })}>
                                 Manage Scenes
                             </Button>
                             <Button block onClick={() => window.open(CONFIG.WEB_URL, '_blank')}>
