@@ -15,28 +15,37 @@ export const DashboardPage: React.FC = () => {
     const go = useGo();
 
     // Fetch stats
-    const { data: photosData, isLoading: isLoadingPhotos } = useList({
+    const photosQuery = useList({
         resource: "photos",
         pagination: { pageSize: 1, mode: "server" },
     });
+    const photosData = photosQuery.result;
+    const isLoadingPhotos = photosQuery.query.isLoading;
 
-    const { data: scenesData, isLoading: isLoadingScenes } = useList({
+    const scenesQuery = useList({
         resource: "scenes",
         pagination: { pageSize: 1, mode: "server" },
     });
+    const scenesData = scenesQuery.result;
+    const isLoadingScenes = scenesQuery.query.isLoading;
 
-    const { data: membersData, isLoading: isLoadingMembers } = useList({
+    const membersQuery = useList({
         resource: "members",
         pagination: { pageSize: 1, mode: "server" },
     });
+    const membersData = membersQuery.result;
+    const isLoadingMembers = membersQuery.query.isLoading;
 
     // Fetch recent photos for the list
-    const { data: recentPhotos, isLoading: isLoadingRecent } = useList({
+    const recentPhotosQuery = useList({
         resource: "photos",
         pagination: { pageSize: 5, mode: "server" },
         sorters: [{ field: "created_at", order: "desc" }],
         meta: { select: "*, scenes(name), members(name)" }
     });
+    const recentPhotos = recentPhotosQuery.result;
+    const isLoadingRecent = recentPhotosQuery.query.isLoading;
+
 
     return (
         <div style={{ padding: 24 }}>

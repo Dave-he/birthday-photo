@@ -274,7 +274,7 @@ export default function Scene() {
                     outlineColor={currentPalette.accent}
                     maxWidth={10}
                     textAlign="center"
-                    font="https://fonts.gstatic.com/s/raleway/v14/1Ptrg8zYS_SKggPNwK4vaqI.woff"
+                    font="https://fonts.gstatic.com/s/zcoolqingkehuangyou/v5/nqyJcc1t_c2bVf5t3-8k9BdfGv1C7G_A.woff"
                 >
                     {getTitle()}
                     <meshStandardMaterial 

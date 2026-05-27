@@ -10,6 +10,17 @@ interface PhotoModalProps {
 }
 
 export default function PhotoModal({ selectedPhoto, onClose }: PhotoModalProps) {
+  // Dynamically rewrite localhost or placeholder URLs to the active Supabase URL if needed
+  const getActiveImageUrl = (url: string) => {
+    if (!url) return '';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (supabaseUrl && (url.includes('localhost:54321') || url.includes('127.0.0.1:54321'))) {
+      return url.replace(/http:\/\/localhost:54321/g, supabaseUrl)
+                .replace(/http:\/\/127.0.0.1:54321/g, supabaseUrl);
+    }
+    return url;
+  }
+
   return (
     <AnimatePresence>
       {selectedPhoto && (
@@ -37,8 +48,8 @@ export default function PhotoModal({ selectedPhoto, onClose }: PhotoModalProps) 
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-1/2 aspect-square relative rounded-lg overflow-hidden border border-white/10 shadow-inner bg-black/20">
                 <Image
-                  src={selectedPhoto.image_url}
-                  alt={selectedPhoto.title}
+                  src={getActiveImageUrl(selectedPhoto.image_url)}
+                  alt={selectedPhoto.title || 'Photo Detail'}
                   fill
                   className="object-contain"
                   sizes="(max-width: 768px) 100vw, 50vw"
@@ -69,7 +80,7 @@ export default function PhotoModal({ selectedPhoto, onClose }: PhotoModalProps) 
                     {selectedPhoto.members.avatar_url && (
                       <div className="relative w-10 h-10 rounded-full border border-white/20 overflow-hidden">
                           <Image
-                            src={selectedPhoto.members.avatar_url}
+                            src={getActiveImageUrl(selectedPhoto.members.avatar_url)}
                             alt={selectedPhoto.members.name}
                             fill
                             className="object-cover"

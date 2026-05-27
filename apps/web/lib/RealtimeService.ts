@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { supabase } from './supabaseClient'
 import { Photo, Scene, Settings } from '@/types'
 

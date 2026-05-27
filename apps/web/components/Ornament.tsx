@@ -2,9 +2,10 @@
 
 import { useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Html, useTexture } from '@react-three/drei'
+import { Html } from '@react-three/drei'
 import { useSpring, animated } from '@react-spring/three'
 import * as THREE from 'three'
+import { useEffect } from 'react'
 
 interface OrnamentProps {
   id: string
@@ -22,10 +23,48 @@ export default function Ornament({ id, imageUrl, title, description, onClick, is
   if(_unused) console.log('Ornament desc', _unused);
 
   const meshRef = useRef<THREE.Mesh>(null)
+  const haloRef = useRef<THREE.Mesh>(null)
   const [hovered, setHover] = useState(false)
+  const [texture, setTexture] = useState<THREE.Texture | null>(null)
   
-  // Use useTexture for caching and better performance
-  const texture = useTexture(imageUrl)
+  // Dynamically rewrite localhost or placeholder URLs to the active Supabase URL if needed
+  const getActiveImageUrl = (url: string) => {
+    if (!url) return '';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (supabaseUrl && (url.includes('localhost:54321') || url.includes('127.0.0.1:54321'))) {
+      return url.replace(/http:\/\/localhost:54321/g, supabaseUrl)
+                .replace(/http:\/\/127.0.0.1:54321/g, supabaseUrl);
+    }
+    return url;
+  }
+  
+  useEffect(() => {
+    const activeUrl = getActiveImageUrl(imageUrl)
+    const loader = new THREE.TextureLoader()
+    loader.setCrossOrigin('anonymous')
+    let isMounted = true
+    
+    loader.load(
+      activeUrl,
+      (tex) => {
+        if (isMounted) setTexture(tex)
+      },
+      undefined,
+      (err) => {
+        console.warn('CORS or loading error for texture:', activeUrl, err)
+        loader.load(
+          'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=150',
+          (fallbackTex) => {
+            if (isMounted) setTexture(fallbackTex)
+          }
+        )
+      }
+    )
+    
+    return () => {
+      isMounted = false
+    }
+  }, [imageUrl])
   
   const { scale, rotationY } = useSpring({
     scale: isSelected ? 1.5 : hovered ? 1.1 : 1,
@@ -33,12 +72,6 @@ export default function Ornament({ id, imageUrl, title, description, onClick, is
     config: { tension: 170, friction: 26 }
   })
 
-  // Random offset for float animation to prevent sync
-  // Math.random() is impure, but useMemo with empty deps makes it run once per mount, which is acceptable for init.
-  // However, for strict purity, we can use id hash or similar, but random is fine here for visual effect.
-  // To satisfy linter, we can move it inside useEffect or just suppress if we accept it's visual only.
-  // Better: use a seed based on ID or just accept it runs once.
-  // Or move to useEffect to set state.
   const [randomOffset] = useState(() => Math.random() * 100)
 
   useFrame((state) => {
@@ -48,6 +81,11 @@ export default function Ornament({ id, imageUrl, title, description, onClick, is
       }
       // Floating effect
       meshRef.current.position.y = Math.sin(state.clock.elapsedTime * 2 + randomOffset) * 0.05
+    }
+    if (haloRef.current && isSelected) {
+      // Elegant spinning and floating for the halo
+      haloRef.current.rotation.z += 0.03
+      haloRef.current.position.y = Math.sin(state.clock.elapsedTime * 3) * 0.02
     }
   })
 
@@ -71,28 +109,45 @@ export default function Ornament({ id, imageUrl, title, description, onClick, is
         scale={scale}
         rotation-y={rotationY}
       >
+        {/* Animated Golden Glowing Halo Ring surrounding the selected card or sphere */}
+        {isSelected && (
+          <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[variant === 'sphere' ? 0.42 : 0.62, 0.015, 8, 64]} />
+            <meshStandardMaterial 
+              color="#ffd700" 
+              emissive="#ffeb3b" 
+              emissiveIntensity={3.5} 
+              roughness={0.1}
+              metalness={0.9}
+            />
+          </mesh>
+        )}
+
         <mesh ref={meshRef}>
             {variant === 'sphere' ? (
                 <>
                     <sphereGeometry args={[0.3, 32, 32]} />
                     <meshStandardMaterial 
-                        map={texture} 
+                        map={texture || undefined} 
                         color={hovered ? 'white' : '#ffffff'}
                         emissive={hovered ? 'white' : 'black'}
                         emissiveIntensity={hovered ? 0.2 : 0}
                         roughness={0.2}
                         metalness={0.1}
                     />
-                    {/* Glass Shell */}
+                    {/* Glass Shell with highly-realistic physical parameters */}
                     <mesh scale={[1.05, 1.05, 1.05]}>
                         <sphereGeometry args={[0.3, 32, 32]} />
                         <meshPhysicalMaterial 
                             transparent 
-                            opacity={0.3} 
-                            roughness={0} 
-                            metalness={0.1}
-                            transmission={0.5}
-                            thickness={0.1}
+                            opacity={0.15} 
+                            roughness={0.05} 
+                            metalness={0.05}
+                            transmission={0.9}
+                            thickness={0.15}
+                            ior={1.5}
+                            clearcoat={1.0}
+                            clearcoatRoughness={0.05}
                             color={hovered ? "#ffeb3b" : "white"}
                         />
                     </mesh>
@@ -106,7 +161,7 @@ export default function Ornament({ id, imageUrl, title, description, onClick, is
                     {/* Image Plane */}
                     <mesh position={[0, 0, 0.03]}>
                         <planeGeometry args={[0.7, 0.5]} />
-                        <meshBasicMaterial map={texture} />
+                        <meshBasicMaterial map={texture || undefined} />
                     </mesh>
                     
                     {/* Golden Border */}
