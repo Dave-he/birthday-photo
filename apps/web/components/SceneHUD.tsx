@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import { Scene, Settings, SceneMode, GalleryLayout, GALLERY_LAYOUTS } from '@/types'
+import { Scene, Settings, SceneMode, GalleryLayout, GALLERY_LAYOUTS, SCENE_MODES } from '@/types'
 import { supabase } from '@/lib/supabaseClient'
 
 type QualityPreset = 'auto' | 'low' | 'high'
@@ -33,6 +33,16 @@ const MODE_ITEMS: { id: SceneMode; icon: string; label: string }[] = [
   { id: 'romantic', icon: '💖', label: 'Romantic' },
   { id: 'party', icon: '🎉', label: 'Party' },
 ]
+
+// Build a quick lookup so we can verify the SCENE_MODES constant and the
+// MODE_ITEMS display list never drift apart at runtime.
+const MODE_ITEM_IDS = new Set(MODE_ITEMS.map((m) => m.id))
+for (const mode of SCENE_MODES) {
+  if (!MODE_ITEM_IDS.has(mode)) {
+    // eslint-disable-next-line no-console
+    console.warn(`[SceneHUD] MODE_ITEMS missing entry for scene mode: ${mode}`)
+  }
+}
 
 const QUALITY_PRESETS: QualityPreset[] = ['auto', 'low', 'high']
 

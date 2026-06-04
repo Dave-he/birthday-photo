@@ -1,11 +1,21 @@
 import { Create, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, InputNumber, Checkbox, Upload, Select } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import { useCreateMany } from "@refinedev/core";
+import { useCreateMany, useList } from "@refinedev/core";
 import { useStorageUpload } from "../../utility/useStorageUpload";
 
+interface CreateFormValues {
+  image_urls: Array<{ response?: string; url?: string }>
+  title?: string
+  description?: string
+  is_featured?: boolean
+  scene_id?: string
+  member_id?: string
+  tags?: string[]
+}
+
 export const PhotoCreate: React.FC = () => {
-  const { formProps, saveButtonProps, onFinish } = useForm();
+  const { formProps, saveButtonProps } = useForm();
   const { mutate: createMany } = useCreateMany();
   const customRequest = useStorageUpload({ bucket: "photos", prefix: "photo" });
 
@@ -23,34 +33,38 @@ export const PhotoCreate: React.FC = () => {
     optionValue: "id",
   });
 
-  const handleFinish = async (values: any) => {
-      // Handle multiple file uploads
-      // 'image_urls' will be an array of file objects if using default Upload behavior with multiple=true
-      // However, we used customRequest, so 'image_urls' might be handled differently depending on how we normalize it.
-      // Let's assume 'image_urls' in values is an array of objects where 'response' is the URL.
-      
-      const images = values.image_urls; // Expecting array of { response: string, ... }
-      
-      if (Array.isArray(images) && images.length > 0) {
-          const records = images.map((img: any) => ({
-              image_url: img.response || img.url,
-              title: values.title, // Shared title
-              description: values.description, // Shared description
-              position_index: values.position_index, // Shared (might overlap)
-              is_featured: values.is_featured,
-              scene_id: values.scene_id,
-              member_id: values.member_id,
-              tags: values.tags, // Array of strings
-          }));
-          
-          createMany({
-              resource: "photos",
-              values: records,
-          });
-      } else {
-          // Fallback for single or error
-          onFinish(values);
-      }
+  // Look up the highest existing position_index so bulk uploads don't all
+  // collide on the same index. Falls back to 0 when the table is empty.
+  const photosQuery = useList({
+    resource: "photos",
+    pagination: { pageSize: 1, mode: "server" },
+    sorters: [{ field: "position_index", order: "desc" }],
+  })
+  const maxPositionIndex = (photosQuery.result?.data?.[0]?.position_index as number) ?? 0
+
+  const handleFinish = (values: any) => {
+    const v = values as CreateFormValues
+    const images = v.image_urls ?? []
+    if (images.length === 0) return // `rules: [{ required: true }]` covers this
+
+    const records = images
+      .map((img) => img.response || img.url)
+      .filter((url): url is string => Boolean(url))
+      .map((url, i) => ({
+        image_url: url,
+        title: v.title,
+        description: v.description,
+        // Stagger positions so each photo lands at a unique slot
+        // (maxPositionIndex + i + 1).
+        position_index: maxPositionIndex + i + 1,
+        is_featured: v.is_featured,
+        scene_id: v.scene_id,
+        member_id: v.member_id,
+        tags: v.tags,
+      }))
+
+    if (records.length === 0) return
+    createMany({ resource: "photos", values: records })
   };
 
   return (
@@ -75,7 +89,7 @@ export const PhotoCreate: React.FC = () => {
                 <UploadOutlined />
               </p>
               <p className="ant-upload-text">Click or drag files to this area to upload</p>
-              <p className="ant-upload-hint">Support for a single or bulk upload.</p>
+              <p className="ant-upload-hint">Support for a single or bulk upload. Next free position starts at {(maxPositionIndex ?? 0) + 1}.</p>
            </Upload.Dragger>
         </Form.Item>
 
@@ -110,19 +124,12 @@ export const PhotoCreate: React.FC = () => {
         >
           <Input placeholder="e.g. Christmas Eve" />
         </Form.Item>
-        
+
         <Form.Item
           label="Description (Shared)"
           name="description"
         >
           <Input.TextArea rows={4} />
-        </Form.Item>
-
-        <Form.Item
-          label="Position Index (1-50)"
-          name="position_index"
-        >
-          <InputNumber min={1} max={50} />
         </Form.Item>
 
         <Form.Item
