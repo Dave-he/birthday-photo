@@ -3,13 +3,7 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Stars } from '@react-three/drei'
 import * as THREE from 'three'
-
-interface Palette {
-    bg: string[]
-    fog: string
-    accent: string
-    text: string
-}
+import type { Palette } from '@/lib/palettes'
 
 interface SceneEnvironmentProps {
     palette: Palette

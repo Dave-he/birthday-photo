@@ -3,9 +3,7 @@ import { Sparkles, Cloud } from '@react-three/drei'
 import Balloons from './Balloons'
 import Fireworks from './Fireworks'
 import MagicParticles from './MagicParticles'
-import { Settings } from '@/types'
-
-type SceneMode = 'christmas' | 'birthday' | 'romantic' | 'party'
+import type { Settings, SceneMode } from '@/types'
 
 interface SceneEffectsProps {
     mode: SceneMode

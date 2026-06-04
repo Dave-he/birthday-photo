@@ -1,3 +1,21 @@
+export type SceneMode = 'christmas' | 'birthday' | 'romantic' | 'party'
+
+export type GalleryLayout = 'tree' | 'helix' | 'grid' | 'sphere'
+
+export const SCENE_MODES: readonly SceneMode[] = [
+  'christmas',
+  'birthday',
+  'romantic',
+  'party',
+] as const
+
+export const GALLERY_LAYOUTS: readonly GalleryLayout[] = [
+  'tree',
+  'helix',
+  'sphere',
+  'grid',
+] as const
+
 export interface Scene {
   id: string;
   name: string;
@@ -19,9 +37,9 @@ export interface Photo {
   scene_id?: string;
   member_id?: string;
   tags?: string[];
-  
+
   // Relations (Fetched via join)
-  members?: Member; 
+  members?: Member;
 }
 
 export interface Settings {

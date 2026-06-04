@@ -7,7 +7,8 @@ import { useStore } from '@/hooks/useStore'
 import { useRealtime } from '@/hooks/useRealtime'
 import { useAutoMode } from '@/hooks/useAutoMode'
 import { Photo } from '@/types'
-import Image from 'next/image'
+import { PALETTES, getSceneTitle } from '@/lib/palettes'
+import { getAdaptiveDpr, getAdaptiveEventsConfig } from '@/lib/adaptive'
 
 // Components
 import SceneEnvironment from './SceneEnvironment'
@@ -17,40 +18,12 @@ import SceneHUD from './SceneHUD'
 import Overlay from './Overlay'
 import PhotoModal from './PhotoModal'
 
-// Color Palettes
-const PALETTES = {
-    christmas: {
-        bg: ['#0f172a', '#000000'], // Slate to Black
-        fog: '#050505',
-        accent: '#c2410c', // Orange/Red
-        text: '#fcd34d' // Amber
-    },
-    birthday: {
-        bg: ['#2e1065', '#000000'], // Violet to Black
-        fog: '#1e1b4b',
-        accent: '#d946ef', // Fuchsia
-        text: '#a855f7' // Purple
-    },
-    romantic: {
-        bg: ['#4a044e', '#000000'], // Fuchsia Dark to Black
-        fog: '#2e0225',
-        accent: '#ec4899', // Pink
-        text: '#f472b6'
-    },
-    party: {
-        bg: ['#1e3a8a', '#000000'], // Blue to Black
-        fog: '#172554',
-        accent: '#3b82f6', // Blue
-        text: '#60a5fa'
-    }
-}
-
 export default function Scene() {
-  const { 
+  const {
       photos, scenes, settings, currentSceneId, isLoading,
       fetchInitialData, setCurrentSceneId
   } = useStore()
-  
+
   useRealtime()
 
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
@@ -68,54 +41,9 @@ export default function Scene() {
   const pm = Math.max(0.1, Math.min(particleMultiplierOverride ?? pmBase, 2))
   const rotateBase = settings?.rotate_speed ?? (isLow ? 0.5 : 0.8)
   const rotate = rotateSpeedOverride ?? rotateBase
-  
-  // Adaptive DPR based on device performance and screen resolution
-  const getAdaptiveDpr = (): number | [number, number] => {
-    if (isLow) return 1 // Low quality mode always uses DPR 1
-    if (typeof window === 'undefined') return [1, 1.5] // Fallback for SSR
-    
-    const devicePixelRatio = window.devicePixelRatio
-    const screenWidth = window.screen.width
-    
-    // High-end devices with high resolution
-    if (devicePixelRatio >= 2.5 && screenWidth >= 1440) return 2
-    // Medium-high end devices
-    if (devicePixelRatio >= 2 && screenWidth >= 1024) return 1.5
-    // Low-mid range devices
-    if (devicePixelRatio >= 1.5) return 1.25
-    // Low-end devices
-    return 1
-  }
-  
-  const adaptiveDpr = getAdaptiveDpr()
-  
-  // Adaptive Events configuration based on device performance
-  const getAdaptiveEventsConfig = () => {
-    if (isLow) {
-      return {
-        enableDamping: false, // Disable damping for better performance
-        dampingFactor: 0.05,
-        rotateSpeed: 0.5,
-        zoomSpeed: 0.5,
-        panSpeed: 0.5,
-        enablePan: false, // Disable panning on low performance
-        enableZoom: true
-      }
-    }
-    
-    return {
-      enableDamping: true,
-      dampingFactor: 0.05,
-      rotateSpeed: 0.8,
-      zoomSpeed: 0.8,
-      panSpeed: 0.8,
-      enablePan: true,
-      enableZoom: true
-    }
-  }
-  
-  const adaptiveEventsConfig = getAdaptiveEventsConfig()
-  
+
+  const adaptiveDpr = getAdaptiveDpr(isLow)
+  const adaptiveEventsConfig = getAdaptiveEventsConfig(isLow)
   const currentPalette = PALETTES[mode]
 
   useEffect(() => {
@@ -168,16 +96,7 @@ export default function Scene() {
     setIsPlaying(!isPlaying)
   }
 
-  const getTitle = () => {
-      const sceneName = scenes.find(s => s.id === currentSceneId)?.name;
-      
-      switch(mode) {
-          case 'birthday': return sceneName || "Happy Birthday!";
-          case 'romantic': return sceneName || "Forever Love";
-          case 'party': return sceneName || "Let's Party!";
-          default: return sceneName || settings?.greeting_title || "Merry Christmas!";
-      }
-  }
+  const title = getSceneTitle(mode, scenes, currentSceneId, settings)
 
   return (
     <>
@@ -276,7 +195,7 @@ export default function Scene() {
                     textAlign="center"
                     font="https://fonts.gstatic.com/s/zcoolqingkehuangyou/v5/nqyJcc1t_c2bVf5t3-8k9BdfGv1C7G_A.woff"
                 >
-                    {getTitle()}
+                    {title}
                     <meshStandardMaterial 
                         emissive={currentPalette.accent} 
                         emissiveIntensity={2} 

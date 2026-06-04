@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Photo } from '@/types'
+import type { Photo } from '@/types'
+import { getActiveImageUrl } from '@/lib/activeImageUrl'
 
 interface PhotoModalProps {
   selectedPhoto: Photo | null
@@ -10,16 +11,6 @@ interface PhotoModalProps {
 }
 
 export default function PhotoModal({ selectedPhoto, onClose }: PhotoModalProps) {
-  // Dynamically rewrite localhost or placeholder URLs to the active Supabase URL if needed
-  const getActiveImageUrl = (url: string) => {
-    if (!url) return '';
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (supabaseUrl && (url.includes('localhost:54321') || url.includes('127.0.0.1:54321'))) {
-      return url.replace(/http:\/\/localhost:54321/g, supabaseUrl)
-                .replace(/http:\/\/127.0.0.1:54321/g, supabaseUrl);
-    }
-    return url;
-  }
 
   return (
     <AnimatePresence>

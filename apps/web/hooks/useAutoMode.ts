@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '@/hooks/useStore'
-
-type SceneMode = 'christmas' | 'birthday' | 'romantic' | 'party'
-type GalleryLayout = 'tree' | 'helix' | 'grid' | 'sphere'
+import { SCENE_MODES, GALLERY_LAYOUTS, SceneMode, GalleryLayout } from '@/types'
 
 export function useAutoMode(hasStarted: boolean) {
     const [mode, setMode] = useState<SceneMode>('christmas')
@@ -13,9 +11,6 @@ export function useAutoMode(hasStarted: boolean) {
         if (!hasStarted) return
         if (settings?.auto_mode_cycle_enabled === false) return
 
-        const modes: SceneMode[] = ['christmas', 'birthday', 'romantic', 'party']
-        const layouts: GalleryLayout[] = ['tree', 'helix', 'sphere', 'grid']
-        
         let currentModeIndex = 0
         let currentLayoutIndex = 0
 
@@ -26,15 +21,15 @@ export function useAutoMode(hasStarted: boolean) {
         const intervalMs = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs)
 
         const interval = setInterval(() => {
-            currentModeIndex = (currentModeIndex + 1) % modes.length
-            const nextMode = modes[currentModeIndex]
+            currentModeIndex = (currentModeIndex + 1) % SCENE_MODES.length
+            const nextMode = SCENE_MODES[currentModeIndex]
             setMode(nextMode)
 
             if (nextMode === 'christmas') {
                 setGalleryLayout('tree')
             } else {
-                currentLayoutIndex = (currentLayoutIndex + 1) % layouts.length
-                setGalleryLayout(layouts[currentLayoutIndex])
+                currentLayoutIndex = (currentLayoutIndex + 1) % GALLERY_LAYOUTS.length
+                setGalleryLayout(GALLERY_LAYOUTS[currentLayoutIndex])
             }
         }, intervalMs)
 

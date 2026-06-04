@@ -1,49 +1,36 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import { useSpring, animated } from '@react-spring/three'
 import * as THREE from 'three'
-import { useEffect } from 'react'
+import { getActiveImageUrl } from '@/lib/activeImageUrl'
 
 interface OrnamentProps {
   id: string
   imageUrl: string
   title?: string
-  description?: string
   onClick: (id: string) => void
   isSelected: boolean
   variant?: 'sphere' | 'card'
 }
 
-export default function Ornament({ id, imageUrl, title, description, onClick, isSelected, variant = 'sphere' }: OrnamentProps) {
-  // Description is optional and not currently used in 3D view, but passed for completeness
-  const _unused = description;
-  if(_unused) console.log('Ornament desc', _unused);
+const FALLBACK_TEXTURE_URL =
+  'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=150'
 
+export default function Ornament({ id, imageUrl, title, onClick, isSelected, variant = 'sphere' }: OrnamentProps) {
   const meshRef = useRef<THREE.Mesh>(null)
   const haloRef = useRef<THREE.Mesh>(null)
   const [hovered, setHover] = useState(false)
   const [texture, setTexture] = useState<THREE.Texture | null>(null)
-  
-  // Dynamically rewrite localhost or placeholder URLs to the active Supabase URL if needed
-  const getActiveImageUrl = (url: string) => {
-    if (!url) return '';
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (supabaseUrl && (url.includes('localhost:54321') || url.includes('127.0.0.1:54321'))) {
-      return url.replace(/http:\/\/localhost:54321/g, supabaseUrl)
-                .replace(/http:\/\/127.0.0.1:54321/g, supabaseUrl);
-    }
-    return url;
-  }
-  
+
   useEffect(() => {
     const activeUrl = getActiveImageUrl(imageUrl)
     const loader = new THREE.TextureLoader()
     loader.setCrossOrigin('anonymous')
     let isMounted = true
-    
+
     loader.load(
       activeUrl,
       (tex) => {
@@ -52,15 +39,12 @@ export default function Ornament({ id, imageUrl, title, description, onClick, is
       undefined,
       (err) => {
         console.warn('CORS or loading error for texture:', activeUrl, err)
-        loader.load(
-          'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=150',
-          (fallbackTex) => {
-            if (isMounted) setTexture(fallbackTex)
-          }
-        )
+        loader.load(FALLBACK_TEXTURE_URL, (fallbackTex) => {
+          if (isMounted) setTexture(fallbackTex)
+        })
       }
     )
-    
+
     return () => {
       isMounted = false
     }

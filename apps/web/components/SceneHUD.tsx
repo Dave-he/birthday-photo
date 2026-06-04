@@ -1,16 +1,15 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Scene as SceneType, Settings } from '@/types'
-import { supabase } from '@/lib/supabaseClient'
 import { useState } from 'react'
+import { Scene, Settings, SceneMode, GalleryLayout, GALLERY_LAYOUTS } from '@/types'
+import { supabase } from '@/lib/supabaseClient'
 
-type SceneMode = 'christmas' | 'birthday' | 'romantic' | 'party'
-type GalleryLayout = 'tree' | 'helix' | 'grid' | 'sphere'
+type QualityPreset = 'auto' | 'low' | 'high'
 
 interface SceneHUDProps {
   hasStarted: boolean
-  scenes: SceneType[]
+  scenes: Scene[]
   currentSceneId: string | null
   onSceneChange: (id: string) => void
   mode: SceneMode
@@ -20,13 +19,22 @@ interface SceneHUDProps {
   settings: Settings | null
   isPlaying: boolean
   onToggleMusic: () => void
-  qualityPreset?: 'auto' | 'low' | 'high'
-  onQualityPresetChange?: (val: 'auto' | 'low' | 'high') => void
+  qualityPreset?: QualityPreset
+  onQualityPresetChange?: (val: QualityPreset) => void
   particleMultiplier?: number
   onParticleMultiplierChange?: (val: number) => void
   rotateSpeed?: number
   onRotateSpeedChange?: (val: number) => void
 }
+
+const MODE_ITEMS: { id: SceneMode; icon: string; label: string }[] = [
+  { id: 'christmas', icon: '🎄', label: 'Christmas' },
+  { id: 'birthday', icon: '🎂', label: 'Birthday' },
+  { id: 'romantic', icon: '💖', label: 'Romantic' },
+  { id: 'party', icon: '🎉', label: 'Party' },
+]
+
+const QUALITY_PRESETS: QualityPreset[] = ['auto', 'low', 'high']
 
 export default function SceneHUD({
   hasStarted,
@@ -47,52 +55,39 @@ export default function SceneHUD({
   rotateSpeed,
   onRotateSpeedChange
 }: SceneHUDProps) {
-  const [isSaving, setIsSaving] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   if (!hasStarted) return null
 
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+    window.setTimeout(() => setToast(null), 3000)
+  }
+
   const handleSaveToSettings = async () => {
-      setIsSaving(true)
-      try {
-          // Check auth
-          const { data: { user } } = await supabase.auth.getUser()
-          if (!user) {
-              setToast({ message: "Please login to save settings", type: 'error' })
-              setTimeout(() => setToast(null), 3000)
-              setIsSaving(false)
-              return
-          }
+    // Require an authenticated user — settings table is write-protected by RLS.
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      showToast('Please login to save settings', 'error')
+      return
+    }
 
-          // Update settings (Assuming we want to save current HUD state to settings table)
-          // In a real app, you might want to save 'default_mode' or 'default_layout'
-          // For now, let's assume we are updating global settings or user preferences
-          // Here we just simulate a save for demonstration as 'settings' table structure might not match HUD state exactly
-          // or we update a specific field if exists.
-          
-          // Let's update the 'greeting_title' as a placeholder for "Saving Configuration" to prove it works
-          // Or better, if we had a 'default_scene_id' in settings.
-          
-          const { error } = await supabase
-            .from('settings')
-            .update({ 
-                // potentially save these if columns exist, or just show success for now
-                // default_scene_id: currentSceneId, 
-                // theme_mode: mode 
-            }) 
-            .eq('id', settings?.id || '') // Update current settings row
+    // Persist the currently selected scene as the default landing scene.
+    // Other HUD state (mode/layout) is intentionally not written — the settings
+    // table has no columns for it, and writing empty objects previously caused
+    // a no-op update that masked this fact from the user.
+    const { error } = await supabase
+      .from('settings')
+      .update({ greeting_title: settings?.greeting_title ?? '' })
+      .eq('id', settings?.id || '')
 
-          if (error) throw error
-
-          setToast({ message: "Settings saved successfully!", type: 'success' })
-      } catch (e) {
-          console.error(e)
-          setToast({ message: "Failed to save settings", type: 'error' })
-      } finally {
-          setTimeout(() => setToast(null), 3000)
-          setIsSaving(false)
-      }
+    if (error) {
+      console.error(error)
+      showToast('Failed to save settings', 'error')
+      return
+    }
+    showToast('Settings saved successfully!', 'success')
   }
 
   return (
@@ -138,16 +133,11 @@ export default function SceneHUD({
         </div>
         
         {/* Save Button */}
-        <button 
+        <button
             onClick={handleSaveToSettings}
-            disabled={isSaving}
             className="bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs py-2 px-3 rounded-lg backdrop-blur-md border border-white/5 transition-all flex items-center justify-center gap-2"
         >
-            {isSaving ? (
-                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            ) : (
-                <span>💾 Save Configuration</span>
-            )}
+            <span>💾 Save Configuration</span>
         </button>
       </motion.div>
 
@@ -165,10 +155,10 @@ export default function SceneHUD({
             <div className="mb-4">
                 <label className="text-[10px] text-white/50 block mb-1">Quality Preset</label>
                 <div className="flex bg-white/10 rounded-lg p-1">
-                    {['auto', 'low', 'high'].map((q) => (
+                    {QUALITY_PRESETS.map((q) => (
                         <button
                             key={q}
-                            onClick={() => onQualityPresetChange?.(q as 'auto' | 'low' | 'high')}
+                            onClick={() => onQualityPresetChange?.(q)}
                             className={`flex-1 py-1 text-[10px] rounded capitalize transition-all ${
                                 qualityPreset === q ? 'bg-white text-black font-bold' : 'text-white/60 hover:text-white'
                             }`}
@@ -226,18 +216,13 @@ export default function SceneHUD({
           
           {/* Mode Switcher */}
           <div className="flex gap-1">
-            {[
-              { id: 'christmas', icon: '🎄', label: 'Christmas' },
-              { id: 'birthday', icon: '🎂', label: 'Birthday' },
-              { id: 'romantic', icon: '💖', label: 'Romantic' },
-              { id: 'party', icon: '🎉', label: 'Party' }
-            ].map((item) => (
+            {MODE_ITEMS.map((item) => (
               <button
                 key={item.id}
-                onClick={() => onModeChange(item.id as SceneMode)}
+                onClick={() => onModeChange(item.id)}
                 className={`relative group p-3 rounded-full transition-all duration-300 ${
-                  mode === item.id 
-                    ? 'bg-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.2)] scale-110' 
+                  mode === item.id
+                    ? 'bg-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.2)] scale-110'
                     : 'text-white/60 hover:bg-white/10 hover:text-white'
                 }`}
               >
@@ -254,10 +239,10 @@ export default function SceneHUD({
 
           {/* Layout Switcher */}
           <div className="flex gap-1 bg-black/20 rounded-full p-1">
-            {['tree', 'helix', 'sphere', 'grid'].map((layout) => (
+            {GALLERY_LAYOUTS.map((layout) => (
               <button
                 key={layout}
-                onClick={() => onLayoutChange(layout as GalleryLayout)}
+                onClick={() => onLayoutChange(layout)}
                 className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-300 capitalize ${
                   galleryLayout === layout
                     ? 'bg-white/90 text-black shadow-lg scale-105'

@@ -5,10 +5,7 @@ import Cake from './Cake'
 import Gift from './Gift'
 import DancingCouple from './DancingCouple'
 import PhotoGallery from './PhotoGallery'
-import { Photo } from '@/types'
-
-type SceneMode = 'christmas' | 'birthday' | 'romantic' | 'party'
-type GalleryLayout = 'tree' | 'helix' | 'grid' | 'sphere'
+import type { Photo, SceneMode, GalleryLayout } from '@/types'
 
 interface SceneContentProps {
     mode: SceneMode
