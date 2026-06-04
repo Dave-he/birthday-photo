@@ -4,6 +4,7 @@
 import { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { PARTICLE_FRAGMENT_SHADER } from '@/lib/particleShader'
 
 const MagicParticlesMaterial = {
   uniforms: {
@@ -16,47 +17,34 @@ const MagicParticlesMaterial = {
     uniform float uTime;
     uniform float uSize;
     uniform float uPixelRatio;
-    
+
     attribute float aScale;
     attribute vec3 aRandomness;
     attribute float aSpeed;
-    
+
     varying vec3 vColor;
-    
+
     void main() {
       vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-      
+
       // Add complex movement based on time and randomness
       float t = uTime * aSpeed;
-      
+
       modelPosition.x += sin(t * aRandomness.x) * 0.5 + cos(t * 0.5) * aRandomness.z * 2.0;
       modelPosition.y += cos(t * aRandomness.y) * 0.5 + sin(t * 0.5) * 2.0;
       modelPosition.z += sin(t * aRandomness.z) * 0.5 + cos(t * 0.3) * aRandomness.x * 2.0;
-      
+
       vec4 viewPosition = viewMatrix * modelPosition;
       vec4 projectionPosition = projectionMatrix * viewPosition;
-      
+
       gl_Position = projectionPosition;
-      
+
       // Size attenuation
       gl_PointSize = uSize * aScale * uPixelRatio;
       gl_PointSize *= (1.0 / -viewPosition.z);
     }
   `,
-  fragmentShader: `
-    uniform vec3 uColor;
-    
-    void main() {
-      // Circular particle
-      float distanceToCenter = distance(gl_PointCoord, vec2(0.5));
-      if(distanceToCenter > 0.5) discard;
-      
-      // Soft edge
-      float strength = 0.05 / distanceToCenter - 0.1;
-      
-      gl_FragColor = vec4(uColor, strength);
-    }
-  `
+  fragmentShader: PARTICLE_FRAGMENT_SHADER,
 }
 
 interface MagicParticlesProps {

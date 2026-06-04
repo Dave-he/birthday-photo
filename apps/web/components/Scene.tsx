@@ -1,7 +1,6 @@
 'use client'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Float, Text, PerformanceMonitor, Stats } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { useStore } from '@/hooks/useStore'
 import { useRealtime } from '@/hooks/useRealtime'
@@ -17,6 +16,7 @@ import SceneContent from './SceneContent'
 import SceneHUD from './SceneHUD'
 import Overlay from './Overlay'
 import PhotoModal from './PhotoModal'
+import PostProcessing from './PostProcessing'
 
 export default function Scene() {
   const {
@@ -206,38 +206,7 @@ export default function Scene() {
             </Float>
 
             {/* Post Processing - Adaptive quality based on performance */}
-            {(() => {
-                // Very low quality - disable all post processing
-                if (pm < 0.3) {
-                    return null;
-                }
-                // Low quality - minimal post processing
-                else if (pm < 0.7) {
-                    return (
-                        <EffectComposer enabled={true} enableNormalPass={false}>
-                            <Vignette eskil={false} offset={0.15} darkness={1.0} />
-                        </EffectComposer>
-                    );
-                }
-                // Medium quality - standard post processing
-                else if (pm < 1.5) {
-                    return (
-                        <EffectComposer enabled={true} enableNormalPass={false}>
-                            <Bloom luminanceThreshold={0.3} mipmapBlur intensity={1.0} radius={0.3} />
-                            <Vignette eskil={false} offset={0.12} darkness={1.05} />
-                        </EffectComposer>
-                    );
-                }
-                // High quality - full post processing
-                else {
-                    return (
-                        <EffectComposer enabled={true} enableNormalPass={false}>
-                            <Bloom luminanceThreshold={0.2} mipmapBlur intensity={1.5} radius={0.4} />
-                            <Vignette eskil={false} offset={0.1} darkness={1.1} />
-                        </EffectComposer>
-                    );
-                }
-            })()}
+            <PostProcessing particleMultiplier={pm} />
           </Suspense>
         </Canvas>
       </div>

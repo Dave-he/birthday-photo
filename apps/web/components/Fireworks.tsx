@@ -3,6 +3,7 @@
 import { useRef, useMemo, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { PARTICLE_FRAGMENT_SHADER } from '@/lib/particleShader'
 
 // Simple Sound Manager for Fireworks
 const playExplosionSound = (volume: number = 0.3) => {
@@ -20,48 +21,36 @@ const FireworkMaterial = {
     uniform float uTime;
     uniform float uSize;
     uniform float uPixelRatio;
-    
+
     attribute vec3 aVelocity;
     attribute float aLife;
-    
+
     void main() {
       vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-      
+
       // Explosion physics
       // uTime here is "time since explosion started"
-      
+
       // Gravity
       float gravity = -0.5 * uTime * uTime;
-      
+
       modelPosition.xyz += aVelocity * uTime * 5.0;
       modelPosition.y += gravity;
-      
+
       vec4 viewPosition = viewMatrix * modelPosition;
       vec4 projectionPosition = projectionMatrix * viewPosition;
-      
+
       gl_Position = projectionPosition;
-      
+
       // Size attenuation
       // Scale down as life fades
       float scale = max(0.0, 1.0 - (uTime / aLife));
-      
+
       gl_PointSize = uSize * scale * uPixelRatio;
       gl_PointSize *= (1.0 / -viewPosition.z);
     }
   `,
-  fragmentShader: `
-    uniform vec3 uColor;
-    
-    void main() {
-      float distanceToCenter = distance(gl_PointCoord, vec2(0.5));
-      if(distanceToCenter > 0.5) discard;
-      
-      // Glowy center
-      float strength = 0.05 / distanceToCenter - 0.1;
-      
-      gl_FragColor = vec4(uColor, strength);
-    }
-  `
+  fragmentShader: PARTICLE_FRAGMENT_SHADER,
 }
 
 function Firework({ position, color, delay, soundEnabled }: { position: [number, number, number], color: string, delay: number, soundEnabled: boolean }) {

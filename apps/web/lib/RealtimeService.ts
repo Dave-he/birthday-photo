@@ -3,8 +3,9 @@ import { supabase } from './supabaseClient'
 import { Photo, Scene, Settings } from '@/types'
 
 type RealtimeEvent = 'INSERT' | 'UPDATE' | 'DELETE'
+type TableName = 'photos' | 'scenes' | 'settings'
 
-interface RealtimeServiceConfig {
+export interface RealtimeServiceConfig {
   listeners: {
     onPhotoChange?: (event: RealtimeEvent, photo: Photo) => void
     onSceneChange?: (event: RealtimeEvent, scene: Scene) => void
@@ -12,61 +13,46 @@ interface RealtimeServiceConfig {
   }
 }
 
+const TABLE_TO_CHANNEL: Record<TableName, string> = {
+  photos: 'photos-changes',
+  scenes: 'scenes-changes',
+  settings: 'settings-changes',
+}
+
 export class RealtimeService {
   private channels: any[] = []
 
   constructor(config: RealtimeServiceConfig) {
-    // Subscribe to photos table
     if (config.listeners.onPhotoChange) {
-      const photosChannel = supabase
-        .channel('photos-changes')
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'photos' },
-          (payload) => {
-            const event = payload.eventType as RealtimeEvent
-            config.listeners.onPhotoChange?.(event, payload.new as Photo)
-          }
-        )
-        .subscribe()
-      
-      this.channels.push(photosChannel)
+      this.channels.push(this.subscribe('photos', config.listeners.onPhotoChange))
     }
-
-    // Subscribe to scenes table
     if (config.listeners.onSceneChange) {
-      const scenesChannel = supabase
-        .channel('scenes-changes')
-        .on('postgres_changes',
-          { event: '*', schema: 'public', table: 'scenes' },
-          (payload) => {
-            const event = payload.eventType as RealtimeEvent
-            config.listeners.onSceneChange?.(event, payload.new as Scene)
-          }
-        )
-        .subscribe()
-      
-      this.channels.push(scenesChannel)
+      this.channels.push(this.subscribe('scenes', config.listeners.onSceneChange))
     }
-
-    // Subscribe to settings table
     if (config.listeners.onSettingsChange) {
-      const settingsChannel = supabase
-        .channel('settings-changes')
-        .on('postgres_changes',
-          { event: '*', schema: 'public', table: 'settings' },
-          (payload) => {
-            const event = payload.eventType as RealtimeEvent
-            config.listeners.onSettingsChange?.(event, payload.new as Settings)
-          }
-        )
-        .subscribe()
-      
-      this.channels.push(settingsChannel)
+      this.channels.push(this.subscribe('settings', config.listeners.onSettingsChange))
     }
   }
 
+  /**
+   * Open a postgres_changes subscription on `table` and forward each row
+   * payload to `onChange`. Kept generic so adding a new table is one line.
+   */
+  private subscribe<T>(table: TableName, onChange: (event: RealtimeEvent, row: T) => void) {
+    return supabase
+      .channel(TABLE_TO_CHANNEL[table])
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        (payload) => {
+          onChange(payload.eventType as RealtimeEvent, payload.new as T)
+        },
+      )
+      .subscribe()
+  }
+
   destroy() {
-    this.channels.forEach(channel => {
+    this.channels.forEach((channel) => {
       supabase.removeChannel(channel)
     })
     this.channels = []
