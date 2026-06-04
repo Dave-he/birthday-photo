@@ -1,13 +1,14 @@
 import { Create, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, InputNumber, Checkbox, Upload, Select } from "antd";
-import { supabaseClient } from "../../utility/supabaseClient";
 import { UploadOutlined } from "@ant-design/icons";
 import { useCreateMany } from "@refinedev/core";
+import { useStorageUpload } from "../../utility/useStorageUpload";
 
 export const PhotoCreate: React.FC = () => {
   const { formProps, saveButtonProps, onFinish } = useForm();
   const { mutate: createMany } = useCreateMany();
-  
+  const customRequest = useStorageUpload({ bucket: "photos", prefix: "photo" });
+
   // Select for Scenes
   const { selectProps: sceneSelectProps } = useSelect({
     resource: "scenes",
@@ -21,25 +22,6 @@ export const PhotoCreate: React.FC = () => {
     optionLabel: "name",
     optionValue: "id",
   });
-
-  const customRequest = async ({ file, onSuccess, onError }: any) => {
-    try {
-      const fileName = `${Date.now()}-${file.name}`;
-      const { error } = await supabaseClient.storage
-        .from("photos")
-        .upload(fileName, file);
-
-      if (error) throw error;
-
-      const { data: urlData } = supabaseClient.storage
-        .from("photos")
-        .getPublicUrl(fileName);
-      
-      onSuccess(urlData.publicUrl);
-    } catch (error) {
-      onError(error);
-    }
-  };
 
   const handleFinish = async (values: any) => {
       // Handle multiple file uploads

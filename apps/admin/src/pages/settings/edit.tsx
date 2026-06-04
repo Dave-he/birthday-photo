@@ -1,7 +1,12 @@
 import { Edit, useForm } from "@refinedev/antd";
-import { Form, Input, InputNumber, Switch, Upload, Button, message, Space, Card, Typography, Divider, Row, Col } from "antd";
-import { supabaseClient } from "../../utility/supabaseClient";
+import { Form, Input, InputNumber, Switch, Upload, Button, message, Space, Card, Typography, Divider, Row, Col, UploadProps } from "antd";
+import { useStorageUpload } from "../../utility/useStorageUpload";
 import { UploadOutlined, MobileOutlined, DesktopOutlined, VideoCameraOutlined } from "@ant-design/icons";
+import {
+  PERFORMANCE_PRESETS,
+  PRESET_LABELS,
+  PerformancePreset,
+} from "./presets";
 
 const { Text } = Typography;
 
@@ -18,71 +23,35 @@ interface SettingsFormValues {
     rotate_speed?: number;
 }
 
+const PRESET_ICONS: Record<PerformancePreset, React.ReactNode> = {
+    mobile: <MobileOutlined />,
+    desktop: <DesktopOutlined />,
+    cinematic: <VideoCameraOutlined />,
+}
+
 export const SettingsEdit: React.FC = () => {
     // We treat settings as a singleton, so we always try to edit the first row
     const { formProps, saveButtonProps } = useForm<SettingsFormValues>();
-    
-    const customRequest = async (options: any, _: any) => {
-        try {
-            const file = options.file as File;
-            const fileName = `music-${Date.now()}-${file.name}`;
-            const { error } = await supabaseClient.storage
-                .from("photos") // Reusing photos bucket for now, ideally 'assets'
-                .upload(fileName, file);
+    const customRequest = useStorageUpload({ bucket: "photos", prefix: "music" });
 
-            if (error) throw error;
-
-            const { data: urlData } = supabaseClient.storage
-                .from("photos")
-                .getPublicUrl(fileName);
-            
-            if (options.onSuccess) options.onSuccess(urlData.publicUrl);
-            message.success("Music uploaded successfully!");
-            
-            // Auto fill the URL input
-            formProps.form?.setFieldValue("bg_music_url", urlData.publicUrl);
-        } catch (error) {
-            console.error(error);
-            if (options.onError) options.onError(error as Error);
-            message.error("Upload failed.");
+    const handleUploadChange: NonNullable<UploadProps["onChange"]> = (info) => {
+        const { file } = info
+        if (file.status === "done") {
+            const url = typeof file.response === "string" ? file.response : undefined
+            if (url) {
+                formProps.form?.setFieldValue("bg_music_url", url)
+                message.success("Music uploaded successfully!")
+            }
+        } else if (file.status === "error") {
+            message.error("Upload failed.")
         }
-    };
+    }
 
-    const applyPreset = (preset: 'mobile' | 'desktop' | 'cinematic') => {
-        const form = formProps.form;
-        if (!form) return;
-        
-        if (preset === 'mobile') {
-            form.setFieldsValue({
-                low_quality_mode: true,
-                particle_multiplier: 0.5,
-                rotate_speed: 0.5,
-                auto_mode_cycle_enabled: true,
-                mode_cycle_min_seconds: 60,
-                mode_cycle_max_seconds: 120,
-            })
-            message.info("Applied Mobile Preset");
-        } else if (preset === 'desktop') {
-            form.setFieldsValue({
-                low_quality_mode: false,
-                particle_multiplier: 1,
-                rotate_speed: 0.8,
-                auto_mode_cycle_enabled: true,
-                mode_cycle_min_seconds: 60,
-                mode_cycle_max_seconds: 180,
-            })
-            message.info("Applied Desktop Preset");
-        } else {
-            form.setFieldsValue({
-                low_quality_mode: false,
-                particle_multiplier: 1.5,
-                rotate_speed: 1.2,
-                auto_mode_cycle_enabled: true,
-                mode_cycle_min_seconds: 90,
-                mode_cycle_max_seconds: 240,
-            })
-            message.info("Applied Cinematic Preset");
-        }
+    const applyPreset = (preset: PerformancePreset) => {
+        const form = formProps.form
+        if (!form) return
+        form.setFieldsValue(PERFORMANCE_PRESETS[preset])
+        message.info(`Applied ${PRESET_LABELS[preset]} Preset`)
     }
 
     return (
@@ -92,9 +61,15 @@ export const SettingsEdit: React.FC = () => {
                     <Space direction="vertical" style={{ width: '100%' }}>
                         <Text strong>Quick Presets</Text>
                         <Space wrap>
-                            <Button icon={<MobileOutlined />} onClick={() => applyPreset('mobile')}>Mobile</Button>
-                            <Button icon={<DesktopOutlined />} onClick={() => applyPreset('desktop')}>Desktop</Button>
-                            <Button icon={<VideoCameraOutlined />} onClick={() => applyPreset('cinematic')}>Cinematic</Button>
+                            {(Object.keys(PERFORMANCE_PRESETS) as PerformancePreset[]).map((p) => (
+                                <Button
+                                    key={p}
+                                    icon={PRESET_ICONS[p]}
+                                    onClick={() => applyPreset(p)}
+                                >
+                                    {PRESET_LABELS[p]}
+                                </Button>
+                            ))}
                         </Space>
                     </Space>
                 </Card>
@@ -123,6 +98,7 @@ export const SettingsEdit: React.FC = () => {
                             <Upload.Dragger
                                 name="file"
                                 customRequest={customRequest}
+                                onChange={handleUploadChange}
                                 maxCount={1}
                                 accept="audio/*"
                                 showUploadList={false}

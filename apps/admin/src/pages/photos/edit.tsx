@@ -1,11 +1,12 @@
 import { Edit, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, InputNumber, Checkbox, Upload, Select } from "antd";
-import { supabaseClient } from "../../utility/supabaseClient";
 import { UploadOutlined } from "@ant-design/icons";
+import { useStorageUpload } from "../../utility/useStorageUpload";
 
 export const PhotoEdit: React.FC = () => {
   const { formProps, saveButtonProps } = useForm();
-  
+  const customRequest = useStorageUpload({ bucket: "photos", prefix: "photo" });
+
   // Select for Scenes
   const { selectProps: sceneSelectProps } = useSelect({
     resource: "scenes",
@@ -19,26 +20,6 @@ export const PhotoEdit: React.FC = () => {
     optionLabel: "name",
     optionValue: "id",
   });
-  
-  // Custom Request logic reused (in a real app, extract this to a hook)
-  const customRequest = async ({ file, onSuccess, onError }: any) => {
-    try {
-      const fileName = `${Date.now()}-${file.name}`;
-      const { error } = await supabaseClient.storage
-        .from("photos")
-        .upload(fileName, file);
-
-      if (error) throw error;
-
-      const { data: urlData } = supabaseClient.storage
-        .from("photos")
-        .getPublicUrl(fileName);
-      
-      onSuccess(urlData.publicUrl);
-    } catch (error) {
-      onError(error);
-    }
-  };
 
   return (
     <Edit saveButtonProps={saveButtonProps}>
