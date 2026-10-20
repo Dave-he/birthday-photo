@@ -1,5 +1,5 @@
-import { Edit, useForm } from "@refinedev/antd";
-import { Form, Input, InputNumber, Switch, Upload, Button, message, Space, Card, Typography, Divider, Row, Col, UploadProps } from "antd";
+import { Edit, useForm, useSelect } from "@refinedev/antd";
+import { Form, Input, InputNumber, Switch, Upload, Button, message, Space, Card, Typography, Divider, Row, Col, UploadProps, Select } from "antd";
 import { useStorageUpload } from "../../utility/useStorageUpload";
 import { UploadOutlined, MobileOutlined, DesktopOutlined, VideoCameraOutlined } from "@ant-design/icons";
 import {
@@ -21,7 +21,24 @@ interface SettingsFormValues {
     low_quality_mode?: boolean;
     particle_multiplier?: number;
     rotate_speed?: number;
+    default_scene_id?: string | null;
+    default_mode?: string;
+    default_layout?: string;
 }
+
+const SCENE_MODE_OPTIONS = [
+    { value: "christmas", label: "🎄 Christmas" },
+    { value: "birthday", label: "🎂 Birthday" },
+    { value: "romantic", label: "💖 Romantic" },
+    { value: "party", label: "🎉 Party" },
+];
+
+const GALLERY_LAYOUT_OPTIONS = [
+    { value: "tree", label: "Tree" },
+    { value: "helix", label: "Helix" },
+    { value: "sphere", label: "Sphere" },
+    { value: "grid", label: "Grid" },
+];
 
 const PRESET_ICONS: Record<PerformancePreset, React.ReactNode> = {
     mobile: <MobileOutlined />,
@@ -33,6 +50,12 @@ export const SettingsEdit: React.FC = () => {
     // We treat settings as a singleton, so we always try to edit the first row
     const { formProps, saveButtonProps } = useForm<SettingsFormValues>();
     const customRequest = useStorageUpload({ bucket: "photos", prefix: "music" });
+
+    const { selectProps: sceneSelectProps } = useSelect({
+        resource: "scenes",
+        optionLabel: "name",
+        optionValue: "id",
+    });
 
     const handleUploadChange: NonNullable<UploadProps["onChange"]> = (info) => {
         const { file } = info
@@ -112,6 +135,37 @@ export const SettingsEdit: React.FC = () => {
                     </Col>
                     
                     <Col span={12}>
+                        <Divider orientation="left">Landing Configuration</Divider>
+                        <Text type="secondary" className="block mb-4 text-xs">
+                            The 3D client restores this configuration on every visit. It can also be
+                            changed from the in-scene HUD.
+                        </Text>
+
+                        <Form.Item
+                            label="Default Scene"
+                            name="default_scene_id"
+                        >
+                            <Select
+                                {...sceneSelectProps}
+                                allowClear
+                                placeholder="First available scene"
+                            />
+                        </Form.Item>
+
+                        <Form.Item
+                            label="Default Mode"
+                            name="default_mode"
+                        >
+                            <Select options={SCENE_MODE_OPTIONS} allowClear placeholder="Christmas" />
+                        </Form.Item>
+
+                        <Form.Item
+                            label="Default Gallery Layout"
+                            name="default_layout"
+                        >
+                            <Select options={GALLERY_LAYOUT_OPTIONS} allowClear placeholder="Tree" />
+                        </Form.Item>
+
                         <Divider orientation="left">Visuals & Performance</Divider>
                         <Space size="large" className="mb-4">
                             <Form.Item

@@ -83,14 +83,23 @@ export default function SceneHUD({
       return
     }
 
-    // Persist the currently selected scene as the default landing scene.
-    // Other HUD state (mode/layout) is intentionally not written — the settings
-    // table has no columns for it, and writing empty objects previously caused
-    // a no-op update that masked this fact from the user.
+    // The settings table is a singleton; without a row id there is nothing to
+    // update. Point the user at the admin panel instead of failing silently.
+    if (!settings?.id) {
+      showToast('No settings record yet — create one in the admin panel', 'error')
+      return
+    }
+
+    // Persist the configuration that the settings table actually has columns
+    // for: the landing scene plus the visual mode / gallery layout.
     const { error } = await supabase
       .from('settings')
-      .update({ greeting_title: settings?.greeting_title ?? '' })
-      .eq('id', settings?.id || '')
+      .update({
+        default_scene_id: currentSceneId || null,
+        default_mode: mode,
+        default_layout: galleryLayout,
+      })
+      .eq('id', settings.id)
 
     if (error) {
       console.error(error)

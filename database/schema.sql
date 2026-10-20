@@ -52,7 +52,13 @@ CREATE TABLE IF NOT EXISTS settings (
   snow_density INTEGER DEFAULT 100,
   is_snowing BOOLEAN DEFAULT true,
   greeting_title TEXT DEFAULT 'Merry Christmas & Happy Birthday!',
-  
+
+  -- Landing configuration (written by the 3D HUD "Save Configuration"
+  -- button and by the admin panel)
+  default_scene_id UUID REFERENCES scenes(id) ON DELETE SET NULL,
+  default_mode TEXT CHECK (default_mode IN ('christmas', 'birthday', 'romantic', 'party')),
+  default_layout TEXT CHECK (default_layout IN ('tree', 'helix', 'sphere', 'grid')),
+
   -- Mode cycle settings
   auto_mode_cycle_enabled BOOLEAN DEFAULT true,
   mode_cycle_min_seconds INTEGER DEFAULT 60,
