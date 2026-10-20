@@ -71,8 +71,10 @@ birthday-photo/
 
 ### 2. 数据库与 Storage 初始化
 1. 打开本地部署的 Supabase Dashboard (通常为 `http://localhost:54323`)。
-2. 进入 SQL Editor，依次运行 `database/schema.sql`、`database/policy.sql` 和 `database/test_data.sql`。
-3. 进入 Storage 菜单，新建一个名为 `photos` 的 **Public Bucket**。
+2. 进入 SQL Editor，依次运行 `database/schema.sql`、`database/policy.sql`、
+   `database/storage.sql` 和 `database/test_data.sql`。
+   `storage.sql` 会幂等地创建 `photos`（仅图片）与 `music`（仅音频）两个 Public Bucket
+   及其读写策略，无需再在 Dashboard 里手动建桶。
 
 > 已有数据库升级：再运行一次 `database/migrations/001_settings_defaults.sql`，
 > 它会幂等地补上 `default_scene_id` / `default_mode` / `default_layout` 三个落幕配置字段。

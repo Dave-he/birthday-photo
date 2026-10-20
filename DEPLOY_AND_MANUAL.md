@@ -115,11 +115,14 @@ pnpm dev
 3.  依次复制并执行以下文件中的 SQL 脚本：
     *   `database/schema.sql` (创建 scenes, members, photos, settings 数据表结构)。
     *   `database/policy.sql` (启用并配置 RLS 安全策略，保障匿名用户仅可 SELECT 读取，认证管理员才可写入)。
+    *   `database/storage.sql` (创建 `photos` 图片桶与 `music` 音频桶，并配置公开读 / 管理员写策略)。
     *   `database/test_data.sql` (注入初始配置参数、示例成员和 3D 精美测试照片)。
 4.  **存量数据库升级**：再执行一次 `database/migrations/001_settings_defaults.sql`，
     为 `settings` 表补上 `default_scene_id` / `default_mode` / `default_layout`
     三个落幕配置字段（幂等脚本，可重复执行）。
-5.  导航至 **Storage** 选项，新建一个名为 **`photos`** 的 **Public Bucket**，将其 Public Access 权限开启为 True，确保照片能生成合法的 CORS 公网链接。
+5.  `storage.sql` 已经建好 `photos` 与 `music` 两个 **Public Bucket**（Public Access 为 True），
+    照片与背景音乐都能生成合法的 CORS 公网链接。若你的 Supabase 版本不允许通过 SQL 建桶，
+    则在 **Storage** 菜单手动新建 `photos`（Public）与 `music`（Public）两个桶。
 
 ---
 

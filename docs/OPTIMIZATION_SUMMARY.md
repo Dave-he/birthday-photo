@@ -44,7 +44,7 @@ R3F 的 `<Suspense fallback={null}>` 包裹了整个场景（`Scene.tsx`）。�
 | --- | --- | --- |
 | 字体 | 硬编码 gstatic v5 地址（已 404） | 自托管 `apps/web/public/fonts/zcool-qingke-huangyou.woff`，由 `lib/assets.ts` 统一管理 |
 | 3D 标题 | troika `<Text>`（永久挂起） | `SceneTitle.tsx` — drei `<Html>` + CSS `@font-face`，走浏览器原生字体渲染 |
-| 云朵贴图 | drei CDN 默认值 | 自托管 `apps/web/public/textures/cloud.png`（由 `scripts/generate-cloud-texture.mjs` 程序化生成） |
+| 云朵贴图 | drei CDN 默认值 | 自托管 `apps/web/public/textures/cloud.png`（由 `scripts/generate-textures.mjs` 程序化生成） |
 | 挂起隔离 | 整个场景共用一个 `<Suspense>` | 会挂起的组件各自独立 `<Suspense>` 边界，失败只影响自己 |
 | 标题位置 | `y = 6.5`（**在相机视锥外**，即使字体正常也看不见） | `y = 4.2`，并加了 E2E 断言 |
 | 跳舞情侣 | 基准高度 `+8`（同样在视锥外，只露出一个角） | 基准高度 `+1.8`，四种模式逐一截图复核 |
@@ -173,6 +173,50 @@ CI（`.github/workflows/build-and-test.yml`）新增了 **单元测试** 与 **�
 
 ---
 
+## 一之二、续作：存储桶、字体体积与图片质量
+
+### 10. 背景音乐上传实际是坏的（P1）
+
+后台的「Upload Music File」把音频传进 `photos` 桶——而按文档创建的 `photos` 桶
+只允许图片 MIME 类型，**MP3 会被存储层直接拒绝**，而界面上只显示一句
+"Upload failed."。
+
+修复：
+
+- 新增 `database/storage.sql`（幂等）创建两个 Public Bucket 及其策略：
+  `photos`（仅图片）与 `music`（仅音频）。存储配置从此**可脚本化**，
+  不再依赖「在 Dashboard 里手动建桶」；
+- 后台设置页改用 `music` 桶；
+- 新增 `describeUploadError()`，把「桶不存在 / MIME 被拒 / 未登录 / 文件过大」
+  翻译成可读提示（并有单测覆盖）；
+- 仪表盘的系统状态卡分别探测两个桶，缺桶一眼可见。
+
+### 11. 中文字体 3.3 MB → 897 KB（P2）
+
+完整中文字体对「只显示一行标题」来说太重。新增
+`scripts/subset-display-font.py`：从**固定地址 + SHA256 校验**的上游文件取源，
+用 Python 内置的 GB2312 编解码器枚举出 3755 个常用简体字，加上拉丁字符与
+CJK 标点，子集化成 woff2——**省 73%**。生成本身可离线复现，构建不依赖网络。
+
+同时：字体加 `<link rel="preload">`，`/fonts` 与 `/textures` 加上一周缓存头
+（Next.js 默认对 public 资源 `max-age=0`，等于每次访问都重下）。
+
+### 12. 照片贴图颜色不对、失败时空白（P2）
+
+`Ornament` 的贴图没设置 `colorSpace = SRGBColorSpace`——渲染器把 sRGB 照片当
+线性数据处理，**整个相册偏暗发灰**；也没设各向异性过滤，斜看时糊。
+
+另外照片加载失败时回退到**远程 Unsplash 地址**——网络正是出问题时，这个回退
+必然也失败，装饰球直接空白。改为自托管占位图。
+
+### 13. 中文标题的 E2E 回归用例（P2）
+
+新增用例断言：字体确实被加载（`document.fonts.check`）、计算出的
+`font-family` 确实是 ZCOOL、且四个字形有合理的排版宽度——防止子集化或
+CSS 改动把中文悄悄退化成豆腐块。
+
+---
+
 ## 二、既有优化（保留）
 
 ### 1. 类型安全
@@ -248,11 +292,13 @@ birthday-photo/
 ├── database/
 │   ├── schema.sql      # 建表脚本
 │   ├── policy.sql      # RLS 策略
+│   ├── storage.sql     # Storage 桶与对象策略（photos / music）
 │   ├── test_data.sql   # 演示数据
 │   └── migrations/     # 存量库的增量迁移
 ├── scripts/
 │   ├── dev.mjs                    # 零依赖的并行开发服务器启动器
-│   └── generate-cloud-texture.mjs # 程序化生成云朵贴图（无需联网）
+│   ├── generate-textures.mjs      # 程序化生成云朵 / 占位贴图（无需联网）
+│   └── subset-display-font.py     # 中文字体子集化（固定地址 + SHA256 校验）
 ├── tests/
 │   ├── unit/           # node:test 纯逻辑测试
 │   └── *.spec.js       # Playwright E2E
@@ -270,9 +316,10 @@ pnpm test:e2e        # Playwright E2E
 pnpm build           # 双端生产构建
 ```
 
-> `apps/web/public/fonts/zcool-qingke-huangyou.woff` 为自托管的 ZCOOL 中文字体
-> （约 3.4 MB，完整字集）；云朵贴图可用
-> `node scripts/generate-cloud-texture.mjs` 重新生成，无需联网。
+> `apps/web/public/fonts/zcool-qingke-huangyou.woff2` 为自托管的 ZCOOL 中文字体子集
+> （约 900 KB，Latin + 标点 + 3755 个常用简体字）；重新生成：
+> `python3 scripts/subset-display-font.py --download apps/web/public/fonts/zcool-qingke-huangyou.woff2`。
+> 云朵与占位贴图可用 `node scripts/generate-textures.mjs` 重新生成，均无需联网。
 
 ## 六、后续可做
 
@@ -280,6 +327,5 @@ pnpm build           # 双端生产构建
 2. **缓存策略** — 为只读接口补 HTTP 缓存头，离线场景引入 Service Worker。
 3. **可观测性** — 接入 `pnpm analyze` 与 Lighthouse，建立体积回归基线。
 4. **音乐存储桶** — 目前背景音乐与图片共用 `photos` 桶，建议拆分独立 bucket 与 MIME 白名单。
-5. **字体瘦身** — 3.4 MB 的中文全字集偏大，可评估按标题字符做子集化，或改用
-   `unicode-range` 分片由浏览器按需下载。
-6. **中文标题回归用例** — 目前 E2E 只断言标题非空，尚未覆盖中文字形渲染。
+5. **字体极端字符** — 子集覆盖 3755 个常用简体字，生僻字会回退到系统 CJK 字体；
+   若需完整字集，可用 `scripts/subset-display-font.py` 扩大字符集重新生成。

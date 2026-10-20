@@ -95,6 +95,56 @@ test.describe('Birthday Photo - 3D Electronic Gallery E2E Tests', () => {
     expect(externalAssets).toEqual([]);
   });
 
+  test('should render Chinese glyphs with the self-hosted display font', async ({ page }) => {
+    // The display font is a subset of a 3.3 MB Chinese font, so it is worth
+    // guarding that the CJK glyphs really come from it instead of a fallback
+    // (or, worse, from a tofu box).
+    await page.goto('/');
+
+    const result = await page.evaluate(async () => {
+      await document.fonts.ready;
+      const sample = '生日快乐';
+
+      const styled = document.createElement('div');
+      styled.className = 'font-display';
+      styled.style.cssText =
+        'position:fixed;top:0;left:0;font-size:48px;color:#fff;visibility:hidden';
+      styled.textContent = sample;
+      document.body.appendChild(styled);
+
+      const fallback = document.createElement('div');
+      fallback.style.cssText =
+        'position:fixed;top:0;left:0;font-size:48px;font-family:sans-serif;visibility:hidden';
+      fallback.textContent = sample;
+      document.body.appendChild(fallback);
+
+      await document.fonts.load('48px "ZCOOL QingKe HuangYou"');
+
+      const styledWidth = styled.getBoundingClientRect().width;
+      const fallbackWidth = fallback.getBoundingClientRect().width;
+      const fontFamily = getComputedStyle(styled).fontFamily;
+
+      styled.remove();
+      fallback.remove();
+
+      return {
+        styledWidth,
+        fallbackWidth,
+        fontFamily,
+        loaded: document.fonts.check('48px "ZCOOL QingKe HuangYou"'),
+      };
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.fontFamily).toContain('ZCOOL QingKe HuangYou');
+    // The glyphs must actually have been laid out by the CJK face: four
+    // characters at 48px produce a sane advance width. (The display face is
+    // narrower than a full-width system CJK font, so the width is only
+    // checked for plausibility, not compared against the fallback.)
+    expect(result.styledWidth).toBeGreaterThan(48 * 1.5);
+    expect(result.styledWidth).toBeLessThan(48 * 5);
+  });
+
   test('should successfully load the Refine Admin Panel', async ({ page }) => {
     // Navigate to Admin dashboard
     await page.goto(`${ADMIN_URL}/`);

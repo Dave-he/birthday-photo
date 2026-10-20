@@ -42,6 +42,9 @@ When delegating tasks to an AI Agent or using slash commands:
 1. **禁止远程资源**。字体、贴图一律自托管在 `apps/web/public/` 下，路径统一由
    `apps/web/lib/assets.ts` 导出。drei 的 `useTexture` / troika 的字体预加载在资源
    不可达时**不会超时、不会报错**，只会永久挂起 `<Suspense>`。
+   字体是子集版（`zcool-qingke-huangyou.woff2`，约 900 KB），由
+   `scripts/subset-display-font.py` 从固定地址（带 SHA256 校验）生成；
+   贴图由 `scripts/generate-textures.mjs` 本地生成。
 2. **会挂起的组件必须独立边界**。`Scene.tsx` 的外层 `<Suspense fallback={null}>`
    覆盖整个场景：其中任何组件挂起 = 全场空白。请把 `<Text>`、`<Cloud>` 这类组件
    各自包一层 `<Suspense>`，失败只影响自己。
