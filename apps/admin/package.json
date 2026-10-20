@@ -34,7 +34,8 @@
     "typescript": "^5.8.3"
   },
   "scripts": {
-    "dev": "refine dev",
+    "dev": "refine dev --devtools false",
+    "dev:devtools": "refine dev",
     "build": "tsc && refine build",
     "start": "refine start",
     "refine": "refine"

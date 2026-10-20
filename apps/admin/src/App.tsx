@@ -20,7 +20,7 @@ import { Header } from "./components/header";
 
 // Import resource pages
 import { DashboardPage } from "./pages/dashboard";
-import { PhotoList, PhotoCreate, PhotoEdit } from "./pages/photos";
+import { PhotoList, PhotoCreate, PhotoEdit, PhotoShow } from "./pages/photos";
 import { SceneList, SceneCreate, SceneEdit } from "./pages/scenes";
 import { MemberList, MemberCreate, MemberEdit } from "./pages/members";
 import { SettingsEdit } from "./pages/settings";
@@ -61,6 +61,7 @@ function App() {
                     list: "/photos",
                     create: "/photos/create",
                     edit: "/photos/edit/:id",
+                    show: "/photos/show/:id",
                     meta: {
                       label: "Photos",
                       icon: <PictureOutlined />,
@@ -121,6 +122,7 @@ function App() {
                       <Route index element={<PhotoList />} />
                       <Route path="create" element={<PhotoCreate />} />
                       <Route path="edit/:id" element={<PhotoEdit />} />
+                      <Route path="show/:id" element={<PhotoShow />} />
                     </Route>
                     <Route path="/scenes">
                       <Route index element={<SceneList />} />
@@ -177,7 +179,11 @@ function App() {
                 <UnsavedChangesNotifier />
                 <DocumentTitleHandler />
               </Refine>
-              <DevtoolsPanel />
+              {/* The devtools panel talks to a separate websocket server that
+                  `refine dev` starts. It is only useful in development — keep
+                  it out of production bundles and out of sessions started
+                  with `pnpm dev` (which runs `refine dev --devtools false`). */}
+              {import.meta.env.DEV && <DevtoolsPanel />}
             </DevtoolsProvider>
           </AntdApp>
         </ColorModeContextProvider>
