@@ -52,13 +52,14 @@ module.exports = defineConfig({
       command: 'pnpm --dir apps/web dev',
       url: WEB_URL,
       reuseExistingServer: !process.env.CI,
-      timeout: 30 * 1000,
+      // A cold Next.js dev compile takes a while on a CI runner.
+      timeout: 120 * 1000,
     },
     {
       command: 'pnpm --dir apps/admin dev',
       url: ADMIN_URL,
       reuseExistingServer: !process.env.CI,
-      timeout: 60 * 1000,
+      timeout: 120 * 1000,
     },
   ],
 });

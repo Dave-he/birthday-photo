@@ -15,10 +15,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js v20
+      - name: Setup Node.js v22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -40,6 +40,10 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install Dependencies
+        env:
+          # The root tooling is only needed for the E2E suite, which is a
+          # separate job - skip the browser download here.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: |
           # Install deps in web
           pnpm --dir apps/web install --no-frozen-lockfile
@@ -72,3 +76,50 @@ jobs:
           VITE_WEB_URL: http://localhost:3000
         run: |
           pnpm --dir apps/admin build
+
+  e2e:
+    name: E2E (chromium)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.27.0
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Dependencies
+        run: |
+          pnpm --dir apps/web install --no-frozen-lockfile
+          pnpm --dir apps/admin install --no-frozen-lockfile
+          pnpm install --no-frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # The suite asserts that the 3D scene really renders (not just that a
+      # canvas exists) and that no third-party asset is loaded - both of which
+      # silently regressed before it existed.
+      - name: Run E2E
+        run: pnpm exec playwright test --project=chromium
