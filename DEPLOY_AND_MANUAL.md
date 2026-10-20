@@ -135,8 +135,20 @@ pnpm dev
 docker-compose up --build -d
 ```
 Docker 将自动按照 monorepo 分块：
-*   `apps/web`: 采用 Next.js Standalone 模式进行高压缩编译，运行于宿主机 `3000` 端口。
-*   `apps/admin`: 基于 TypeScript 编译生成极致静态资源，通过内置 Nginx 高效反向代理挂载，运行于宿主机 `8080` 端口。
+*   `apps/web`: 多阶段构建（依赖层 → 构建层 → 运行层），生产模式 `next start`，运行于宿主机 `3000` 端口。
+*   `apps/admin`: 多阶段构建，TypeScript 编译出静态资源后由 `serve` 提供静态托管，运行于宿主机 `8080` 端口。
+
+> **两个容易踩的坑（已在仓库中修复）**
+>
+> 1. `NEXT_PUBLIC_*` / `VITE_*` 是在**构建期**被内联进浏览器包的，所以它们必须
+>    通过 `build.args` 传给构建阶段；只设置容器的运行时环境变量对浏览器端无效。
+> 2. 管理端用的是 `serve`，它监听容器内的 **3000** 端口而不是 80，所以端口映射
+>    必须是 `8080:3000`。
+>
+> 另外，基础镜像的 Alpine 版本与 pnpm 版本都已固定：最新的 `node:20-alpine`
+> 是按 x86-64-v3 指令集编译的，在没有 AVX2 的 CPU 上会被内核以
+> `exec format error` 拒绝执行；pnpm 11/12 读取 `onlyBuiltDependencies`
+> 白名单的位置也与 pnpm 10 不同。
 
 ---
 

@@ -3,6 +3,11 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        # `NEXT_PUBLIC_*` is inlined into the client bundle at build time, so
+        # it has to be passed to the build - not just to the container.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     ports:
       - "3000:3000"
     environment:
@@ -14,9 +19,17 @@ services:
     build:
       context: .
       dockerfile: apps/admin/Dockerfile
+      args:
+        # The same applies to the admin's `VITE_*` values.
+        VITE_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        VITE_WEB_URL: http://localhost:3000
     ports:
-      - "8080:80"
+      # `serve` (the admin's static file server) listens on 3000 inside the
+      # container, not on 80.
+      - "8080:3000"
     environment:
       - VITE_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - VITE_WEB_URL=http://localhost:3000
     restart: always
