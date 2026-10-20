@@ -1,11 +1,12 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import { useSpring, animated } from '@react-spring/three'
 import * as THREE from 'three'
 import { getActiveImageUrl } from '@/lib/activeImageUrl'
+import { PLACEHOLDER_TEXTURE_URL } from '@/lib/assets'
 
 interface OrnamentProps {
   id: string
@@ -16,14 +17,12 @@ interface OrnamentProps {
   variant?: 'sphere' | 'card'
 }
 
-const FALLBACK_TEXTURE_URL =
-  'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=150'
-
 export default function Ornament({ id, imageUrl, title, onClick, isSelected, variant = 'sphere' }: OrnamentProps) {
   const meshRef = useRef<THREE.Mesh>(null)
   const haloRef = useRef<THREE.Mesh>(null)
   const [hovered, setHover] = useState(false)
   const [texture, setTexture] = useState<THREE.Texture | null>(null)
+  const gl = useThree((state) => state.gl)
 
   useEffect(() => {
     const activeUrl = getActiveImageUrl(imageUrl)
@@ -31,24 +30,32 @@ export default function Ornament({ id, imageUrl, title, onClick, isSelected, var
     loader.setCrossOrigin('anonymous')
     let isMounted = true
 
+    const applyTexture = (tex: THREE.Texture) => {
+      // Photos are sRGB encoded. Without this the renderer treats them as
+      // linear data and the whole gallery looks washed out and too dark.
+      tex.colorSpace = THREE.SRGBColorSpace
+      // Keeps the photos sharp when an ornament is viewed at an angle.
+      tex.anisotropy = Math.min(8, gl.capabilities.getMaxAnisotropy())
+      tex.needsUpdate = true
+      if (isMounted) setTexture(tex)
+    }
+
     loader.load(
       activeUrl,
-      (tex) => {
-        if (isMounted) setTexture(tex)
-      },
+      applyTexture,
       undefined,
       (err) => {
         console.warn('CORS or loading error for texture:', activeUrl, err)
-        loader.load(FALLBACK_TEXTURE_URL, (fallbackTex) => {
-          if (isMounted) setTexture(fallbackTex)
-        })
+        // Self-hosted placeholder: a remote fallback would fail exactly when
+        // the network is the problem, leaving the ornament blank.
+        loader.load(PLACEHOLDER_TEXTURE_URL, applyTexture)
       }
     )
 
     return () => {
       isMounted = false
     }
-  }, [imageUrl])
+  }, [imageUrl, gl])
   
   const { scale, rotationY } = useSpring({
     scale: isSelected ? 1.5 : hovered ? 1.1 : 1,
