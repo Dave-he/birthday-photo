@@ -31,6 +31,11 @@ module.exports = defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  // The 3D tests wait for the photo server, which can take ten seconds to
+  // report that it is unreachable, and then for a WebGL scene to boot in a
+  // software renderer. Thirty seconds was not enough on a loaded machine.
+  timeout: 90_000,
+
   projects: [
     {
       name: 'chromium',

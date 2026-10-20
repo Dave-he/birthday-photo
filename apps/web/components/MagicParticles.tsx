@@ -1,51 +1,40 @@
 /* eslint-disable */
 'use client'
 
-import { useRef, useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PARTICLE_FRAGMENT_SHADER } from '@/lib/particleShader'
 
-const MagicParticlesMaterial = {
-  uniforms: {
-    uTime: { value: 0 },
-    uColor: { value: new THREE.Color('#ffd700') },
-    uSize: { value: 0.2 },
-    uPixelRatio: { value: 1 }
-  },
-  vertexShader: `
-    uniform float uTime;
-    uniform float uSize;
-    uniform float uPixelRatio;
+const MagicParticlesVertexShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uSize;
+  uniform float uPixelRatio;
 
-    attribute float aScale;
-    attribute vec3 aRandomness;
-    attribute float aSpeed;
+  attribute float aScale;
+  attribute vec3 aRandomness;
+  attribute float aSpeed;
 
-    varying vec3 vColor;
+  void main() {
+    vec4 modelPosition = modelMatrix * vec4(position, 1.0);
 
-    void main() {
-      vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+    // Add complex movement based on time and randomness
+    float t = uTime * aSpeed;
 
-      // Add complex movement based on time and randomness
-      float t = uTime * aSpeed;
+    modelPosition.x += sin(t * aRandomness.x) * 0.5 + cos(t * 0.5) * aRandomness.z * 2.0;
+    modelPosition.y += cos(t * aRandomness.y) * 0.5 + sin(t * 0.5) * 2.0;
+    modelPosition.z += sin(t * aRandomness.z) * 0.5 + cos(t * 0.3) * aRandomness.x * 2.0;
 
-      modelPosition.x += sin(t * aRandomness.x) * 0.5 + cos(t * 0.5) * aRandomness.z * 2.0;
-      modelPosition.y += cos(t * aRandomness.y) * 0.5 + sin(t * 0.5) * 2.0;
-      modelPosition.z += sin(t * aRandomness.z) * 0.5 + cos(t * 0.3) * aRandomness.x * 2.0;
+    vec4 viewPosition = viewMatrix * modelPosition;
+    vec4 projectionPosition = projectionMatrix * viewPosition;
 
-      vec4 viewPosition = viewMatrix * modelPosition;
-      vec4 projectionPosition = projectionMatrix * viewPosition;
+    gl_Position = projectionPosition;
 
-      gl_Position = projectionPosition;
-
-      // Size attenuation
-      gl_PointSize = uSize * aScale * uPixelRatio;
-      gl_PointSize *= (1.0 / -viewPosition.z);
-    }
-  `,
-  fragmentShader: PARTICLE_FRAGMENT_SHADER,
-}
+    // Size attenuation
+    gl_PointSize = uSize * aScale * uPixelRatio;
+    gl_PointSize *= (1.0 / -viewPosition.z);
+  }
+`
 
 interface MagicParticlesProps {
   count?: number
@@ -53,9 +42,18 @@ interface MagicParticlesProps {
   size?: number
 }
 
+/**
+ * The ambient gold sparkles that drift through the whole scene.
+ *
+ * The particle size used to be frozen at whatever the device pixel ratio
+ * was when the material was created. The renderer changes its pixel ratio
+ * with the adaptive DPR, so the sparkles ended up the wrong size on
+ * high-density screens.
+ */
 export default function MagicParticles({ count = 100, color = '#ffd700', size = 0.2 }: MagicParticlesProps) {
   const points = useRef<THREE.Points>(null)
-  
+  const gl = useThree((state) => state.gl)
+
   // Create shader material
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -63,18 +61,18 @@ export default function MagicParticles({ count = 100, color = '#ffd700', size = 
         uTime: { value: 0 },
         uColor: { value: new THREE.Color(color) },
         uSize: { value: size * 250 }, // Scale size to appropriate range
-        uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 1 }
+        uPixelRatio: { value: 1 },
       },
-      vertexShader: MagicParticlesMaterial.vertexShader,
-      fragmentShader: MagicParticlesMaterial.fragmentShader,
+      vertexShader: MagicParticlesVertexShader,
+      fragmentShader: PARTICLE_FRAGMENT_SHADER,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
     })
   }, [color, size])
 
   // Generate attributes
-  const { positions, scales, randomness, speeds } = useMemo(() => {
+  const geometry = useMemo(() => {
     const positions = new Float32Array(count * 3)
     const scales = new Float32Array(count)
     const randomness = new Float32Array(count * 3)
@@ -88,16 +86,35 @@ export default function MagicParticles({ count = 100, color = '#ffd700', size = 
       positions[i3 + 2] = (Math.random() - 0.5) * 20
 
       scales[i] = Math.random()
-      
+
       randomness[i3] = Math.random()
       randomness[i3 + 1] = Math.random()
       randomness[i3 + 2] = Math.random()
-      
+
       speeds[i] = 0.2 + Math.random() * 0.8
     }
 
-    return { positions, scales, randomness, speeds }
+    const buffer = new THREE.BufferGeometry()
+    buffer.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    buffer.setAttribute('aScale', new THREE.BufferAttribute(scales, 1))
+    buffer.setAttribute('aRandomness', new THREE.BufferAttribute(randomness, 3))
+    buffer.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1))
+    return buffer
   }, [count])
+
+  // Dispose the GPU resources when the particle set is replaced.
+  useEffect(() => {
+    return () => {
+      geometry.dispose()
+      material.dispose()
+    }
+  }, [geometry, material])
+
+  // Follow the renderer's pixel ratio, which the adaptive DPR changes at
+  // runtime.
+  useEffect(() => {
+    material.uniforms.uPixelRatio.value = gl.getPixelRatio()
+  }, [material, gl])
 
   useFrame((state) => {
     if (points.current && points.current.material instanceof THREE.ShaderMaterial) {
@@ -105,26 +122,5 @@ export default function MagicParticles({ count = 100, color = '#ffd700', size = 
     }
   })
 
-  return (
-    <points ref={points} material={material}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
-        <bufferAttribute
-          attach="attributes-aScale"
-          args={[scales, 1]}
-        />
-        <bufferAttribute
-          attach="attributes-aRandomness"
-          args={[randomness, 3]}
-        />
-        <bufferAttribute
-          attach="attributes-aSpeed"
-          args={[speeds, 1]}
-        />
-      </bufferGeometry>
-    </points>
-  )
+  return <points ref={points} material={material} geometry={geometry} />
 }

@@ -35,3 +35,11 @@ export const CLOUD_TEXTURE_URL = '/textures/cloud.png'
  * ornament blank instead of showing a placeholder.
  */
 export const PLACEHOLDER_TEXTURE_URL = '/textures/placeholder.png'
+
+/**
+ * The floor disc.
+ *
+ * White with a radial alpha falloff, so the material's colour decides how
+ * the floor looks while the alpha lets it dissolve into the fog.
+ */
+export const GROUND_TEXTURE_URL = '/textures/ground.png'

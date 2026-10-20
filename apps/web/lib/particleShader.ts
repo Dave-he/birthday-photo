@@ -13,8 +13,11 @@ export const PARTICLE_FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 uColor;
 
   void main() {
-    // Circular particle
-    float distanceToCenter = distance(gl_PointCoord, vec2(0.5));
+    // Circular particle.
+    // The distance is floored at a small epsilon: the centre of a sprite
+    // has a distance of exactly zero, and the glow formula below divides
+    // by it.
+    float distanceToCenter = max(distance(gl_PointCoord, vec2(0.5)), 0.001);
     if (distanceToCenter > 0.5) discard;
 
     // Soft edge glow — bright near the center, fades out.

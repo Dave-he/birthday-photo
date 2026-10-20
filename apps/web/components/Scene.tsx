@@ -1,15 +1,18 @@
 'use client'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Float, PerformanceMonitor, Stats } from '@react-three/drei'
+import { OrbitControls, Float, Stats } from '@react-three/drei'
 import { useCallback, useEffect, useMemo, useState, useRef, Suspense } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStore } from '@/hooks/useStore'
 import { useRealtime } from '@/hooks/useRealtime'
 import { useAutoMode } from '@/hooks/useAutoMode'
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 import { Photo } from '@/types'
 import { PALETTES, getSceneTitle } from '@/lib/palettes'
-import { getAdaptiveDpr, getAdaptiveEventsConfig } from '@/lib/adaptive'
-import { DISPLAY_FONT_URL } from '@/lib/assets'
+import { getAdaptiveEventsConfig } from '@/lib/adaptive'
+import { getSceneQuality } from '@/lib/sceneQuality'
+import { getCameraFraming } from '@/lib/cameraFraming'
+import { GROUND_Y } from '@/lib/stage'
 
 // Components
 import SceneEnvironment from './SceneEnvironment'
@@ -17,6 +20,9 @@ import SceneEffects from './SceneEffects'
 import SceneContent from './SceneContent'
 import SceneHUD from './SceneHUD'
 import SceneTitle from './SceneTitle'
+import SceneErrorBoundary from './SceneErrorBoundary'
+import AdaptiveQuality from './AdaptiveQuality'
+import CameraRig from './CameraRig'
 import Overlay from './Overlay'
 import PhotoModal from './PhotoModal'
 import PostProcessing from './PostProcessing'
@@ -49,13 +55,26 @@ export default function Scene() {
 
   // Use Custom Hook for Mode Logic
   const { mode, setMode, galleryLayout, setGalleryLayout } = useAutoMode(hasStarted)
+  const reducedMotion = usePrefersReducedMotion()
+
   const isLow = (settings?.low_quality_mode === true) || qualityPreset === 'low'
   const pmBase = settings?.particle_multiplier ?? (isLow ? 0.5 : 1)
   const pm = Math.max(0.1, Math.min(particleMultiplierOverride ?? pmBase, 2))
   const rotateBase = settings?.rotate_speed ?? (isLow ? 0.5 : 0.8)
   const rotate = rotateSpeedOverride ?? rotateBase
 
-  const adaptiveDpr = getAdaptiveDpr(isLow)
+  // One object decides how expensive the scene is allowed to be.
+  const quality = useMemo(
+    () =>
+      getSceneQuality({
+        isLow,
+        particleMultiplier: pm,
+        snowDensity: settings?.snow_density ?? 300,
+        reducedMotion,
+      }),
+    [isLow, pm, settings?.snow_density, reducedMotion],
+  )
+
   const adaptiveEventsConfig = getAdaptiveEventsConfig(isLow)
   const currentPalette = PALETTES[mode]
 
@@ -109,7 +128,7 @@ export default function Scene() {
 
   const toggleMusic = () => {
     if (!audioRef.current) return
-    
+
     if (isPlaying) {
       audioRef.current.pause()
     } else {
@@ -137,6 +156,10 @@ export default function Scene() {
   }, [selectedPhoto, photos])
 
   const title = getSceneTitle(mode, scenes, currentSceneId, settings)
+
+  // The camera starts where the framing module says it should, and the
+  // camera rig keeps it there as the viewport changes.
+  const initialFraming = useMemo(() => getCameraFraming(16 / 9), [])
 
   return (
     <>
@@ -176,80 +199,104 @@ export default function Scene() {
             background: `linear-gradient(to bottom, ${currentPalette.bg[0]}, ${currentPalette.bg[1]})`
         }}
       >
-        <Canvas
-          className="scene-canvas"
-          camera={{ position: [0, 2, 14], fov: 45 }}
-          gl={{ antialias: false }} 
-          dpr={adaptiveDpr}
-          shadows={!isLow}
-          // The scene is fully animation-driven: every ornament, balloon,
-          // particle and the auto-rotation run inside `useFrame`. A `demand`
-          // frameloop only renders on invalidate, which freezes the whole
-          // scene in low-quality mode. Quality is instead controlled through
-          // DPR, shadows, particle counts and input damping.
-          frameloop="always"
-        >
-          <Suspense fallback={null}>
-            {/* Dev Performance Stats */}
-            {process.env.NODE_ENV === 'development' && <Stats className="!left-auto !right-0 !top-0" />}
+        <SceneErrorBoundary>
+          <Canvas
+            className="scene-canvas"
+            camera={{
+              position: initialFraming.position,
+              fov: initialFraming.fov,
+              near: 0.1,
+              far: 220,
+            }}
+            gl={{ antialias: false }} 
+            dpr={quality.dpr[1]}
+            shadows={quality.shadows}
+            // The scene is fully animation-driven: every ornament, balloon,
+            // particle and the auto-rotation run inside `useFrame`. A `demand`
+            // frameloop only renders on invalidate, which freezes the whole
+            // scene in low-quality mode. Quality is instead controlled through
+            // DPR, shadows, particle counts and input damping.
+            frameloop="always"
+          >
+            {/* The boundary around the whole scene is a last line of defence.
+                Everything that can suspend (the clouds) has its own
+                boundary, so this one should never trigger — and when it
+                does, the visitor sees a loader instead of a blank screen. */}
+            <Suspense fallback={<SceneLoadingStage />}>
+              {/* Dev Performance Stats */}
+              {process.env.NODE_ENV === 'development' && <Stats className="!left-auto !right-0 !top-0" />}
 
-            <PerformanceMonitor 
-              onDecline={() => setQualityPreset('low')} 
-              // onAccept doesn't exist in PerformanceMonitor types in this version?
-              // But we can monitor the onChange factor
-              onChange={({ factor }) => {
-                if (factor > 0.9 && qualityPreset === 'low') setQualityPreset('high')
-              }}
-            />
-            
-            <SceneEnvironment palette={currentPalette} />
+              <AdaptiveQuality
+                min={quality.dpr[0]}
+                max={quality.dpr[1]}
+                onFallback={() => setQualityPreset('low')}
+              />
 
-            <SceneEffects mode={mode} settings={settings} particleMultiplier={pm} lowQuality={isLow} />
-            
-            <OrbitControls 
-                enableZoom={adaptiveEventsConfig.enableZoom} 
-                enablePan={adaptiveEventsConfig.enablePan} 
-                maxPolarAngle={Math.PI / 1.4} 
-                minPolarAngle={Math.PI / 3}
-                autoRotate={!selectedPhoto && hasStarted}
-                autoRotateSpeed={rotate}
-                maxDistance={25}
-                minDistance={5}
-                enableDamping={adaptiveEventsConfig.enableDamping}
-                dampingFactor={adaptiveEventsConfig.dampingFactor}
-                rotateSpeed={adaptiveEventsConfig.rotateSpeed}
-                zoomSpeed={adaptiveEventsConfig.zoomSpeed}
-                panSpeed={adaptiveEventsConfig.panSpeed}
-            />
-            
-            <SceneContent 
-                mode={mode} 
-                photos={photos} 
-                selectedPhoto={selectedPhoto} 
-                onSelectPhoto={setSelectedPhoto} 
-                galleryLayout={galleryLayout} 
-            />
+              <CameraRig />
 
-            {/* Floating 3D Title
-                *
-                * Rendered as a DOM overlay anchored in 3D space rather than a
-                * troika mesh: troika has to build SDF glyphs for the whole
-                * 3.4 MB Chinese font and never reports failures back to
-                * React, so a slow or unreachable font suspended the title
-                * forever — and, while it shared the outer Suspense boundary,
-                * it blanked the entire scene. */}
-            <Float speed={4} rotationIntensity={0.2} floatIntensity={1} floatingRange={[0, 0.6]}>
-                <SceneTitle
-                    title={title}
-                    color={currentPalette.text}
-                    accent={currentPalette.accent}
+              <SceneEnvironment palette={currentPalette} quality={quality} />
+
+              <SceneEffects
+                mode={mode}
+                settings={settings}
+                quality={quality}
+                reducedMotion={reducedMotion}
+              />
+              
+              <OrbitControls 
+                  enableZoom={adaptiveEventsConfig.enableZoom} 
+                  enablePan={adaptiveEventsConfig.enablePan} 
+                  maxPolarAngle={Math.PI / 1.4} 
+                  minPolarAngle={Math.PI / 3}
+                  target={initialFraming.target}
+                  autoRotate={quality.autoRotate && !selectedPhoto && hasStarted}
+                  autoRotateSpeed={rotate}
+                  maxDistance={30}
+                  minDistance={6}
+                  enableDamping={adaptiveEventsConfig.enableDamping}
+                  dampingFactor={adaptiveEventsConfig.dampingFactor}
+                  rotateSpeed={adaptiveEventsConfig.rotateSpeed}
+                  zoomSpeed={adaptiveEventsConfig.zoomSpeed}
+                  panSpeed={adaptiveEventsConfig.panSpeed}
+              />
+
+              {/* Everything below stands on the stage, whose origin is the
+                  middle of the floor. */}
+              <group position={[0, GROUND_Y, 0]}>
+                <SceneContent
+                    mode={mode}
+                    photos={photos}
+                    selectedPhoto={selectedPhoto}
+                    onSelectPhoto={setSelectedPhoto}
+                    galleryLayout={galleryLayout}
+                    quality={quality}
+                    reducedMotion={reducedMotion}
                 />
-            </Float>
 
-            {/* Post Processing - Adaptive quality based on performance */}
-            <PostProcessing particleMultiplier={pm} />
-          </Suspense>
-        </Canvas>
+                {/* Floating 3D Title
+                    *
+                    * Rendered as a DOM overlay anchored in 3D space rather than a
+                    * troika mesh: troika has to build SDF glyphs for the whole
+                    * 3.4 MB Chinese font and never reports failures back to
+                    * React, so a slow or unreachable font suspended the title
+                    * forever — and, while it shared the outer Suspense boundary,
+                    * it blanked the entire scene. */}
+                <Float speed={4} rotationIntensity={0.2} floatIntensity={1} floatingRange={[0, 0.6]}>
+                    <SceneTitle
+                        title={title}
+                        color={currentPalette.text}
+                        accent={currentPalette.accent}
+                    />
+                </Float>
+              </group>
+
+              {/* Post Processing - the bloom makes the tree lights and the
+                  star read as real light sources. The tier decides how
+                  much of the chain is worth its frame budget. */}
+              <PostProcessing quality={quality} />
+            </Suspense>
+          </Canvas>
+        </SceneErrorBoundary>
       </div>
 
       {/* Selected Photo Modal */}
@@ -261,5 +308,21 @@ export default function Scene() {
         position={selectedPosition}
       />
     </>
+  )
+}
+
+/**
+ * A visible placeholder for the (unlikely) case that the whole scene
+ * suspends.
+ *
+ * The old boundary had `fallback={null}`, which meant any suspended
+ * component left the visitor staring at an empty screen.
+ */
+function SceneLoadingStage() {
+  return (
+    <mesh position={[0, 0, 0]}>
+      <icosahedronGeometry args={[0.6, 1]} />
+      <meshStandardMaterial color="#fcd34d" emissive="#f59e0b" emissiveIntensity={1.2} wireframe />
+    </mesh>
   )
 }

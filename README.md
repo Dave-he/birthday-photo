@@ -13,14 +13,20 @@
    - 🎉 **派对模式 (Party)**: 绚丽烟花粒子特效、动态变色炫光。
 2. **动态多端光影与中文支持**：
    - 注入 **ZCOOL Chinese 艺术字体**（**自托管**于 `apps/web/public/fonts/`，不依赖 Google Fonts CDN，内网 / 离线环境同样可用），完美呈现中文场景名和欢迎语，拒绝中文字符方块乱码。
-   - 包含动态彩色点光源（在场景上空缓慢运动和呼吸），令金属表面的相框、水晶玻璃材质的圣诞树产生奢华反光。
+   - **本地烘焙的 IBL 环境光**：用 `<Environment>` + `<Lightformer>` 在本地生成环境贴图（**零网络请求**），金属相框、水晶玻璃挂饰、圣诞树表面因此有了真实的高光与反射。
+   - 包含动态彩色点光源（在场景上空缓慢运动和呼吸），令金属表面的相框、玻璃材质的挂饰产生奢华反光。
 3. **真实相册渲染与 CORS 防崩溃兜底**：
-   - 采用异步 Texture 缓存加载机制，在网络延迟、404 或 CORS 跨域错误时自动降级到精美占位图，确保 3D 画布 100% 坚韧不崩溃。
+   - 采用**引用计数的共享贴图缓存**（`lib/textureCache.ts`），同一张照片只下载一次、只占一份显存，最后一个使用者离开时才释放；网络延迟、404 或 CORS 跨域错误时自动降级到自托管占位图。
    - 场景所需的字体与贴图**全部自托管**，且每个会异步加载资源的组件都有独立加载边界——任何单个资源加载失败都**不会**导致整个场景空白。
+   - **3D 崩溃隔离**：WebGL 上下文丢失或组件抛错时，错误边界接管并给出可读提示与「重新加载」，而不是整页白屏。
 4. **本地 Docker Supabase 开箱即用**：
    - 项目提供一键连接本地 Docker 部署的 Supabase 环境配置文件，实现极速本地私有化数据存储。
-5. **企业级 CI/CD 流水线**：
+5. **响应式取景与可访问性**：
+   - 相机按视口宽高比反算距离与视场角：桌面、笔记本、手机竖屏都能完整框住舞台，且**保留访客已经转动的视角**。
+   - 支持 `prefers-reduced-motion`：访客要求减少动效时，相机自动旋转、气球上升、挂饰漂浮与树灯闪烁都会停下。
+6. **企业级 CI/CD 流水线**：
    - 配置好完整的 GitHub Actions 打包流水线，自动检测多端编译兼容性。
+   - E2E 除了断言「场景标题可见」外，还**逐像素检查画面不是纯色**，能抓住「场景提交了但什么都没画」这类回归。
 
 ---
 
@@ -42,7 +48,7 @@ birthday-photo/
 │   ├── policy.sql
 │   ├── test_data.sql
 │   └── migrations/     # 存量数据库的增量迁移脚本
-├── scripts/            # 仓库级脚本（如一键启动双端的 dev.mjs）
+├── scripts/            # 仓库级脚本（dev.mjs / 场景审计 scene-audit.mjs 等）
 ├── tests/              # 单元测试 (node:test) 与 Playwright E2E
 ├── AGENTS.md           # AI 智能体开发规范与协作指南
 ├── docker-compose.yml  # Docker 容器编排文件
@@ -102,10 +108,26 @@ pnpm dev:admin   # http://localhost:5173
 
 ### 4. 常用校验命令
 ```bash
-pnpm typecheck   # 前后端类型检查
-pnpm test:unit   # 纯逻辑单元测试 (node:test)
-pnpm build       # 双端生产构建
+pnpm typecheck     # 前后端类型检查
+pnpm test:unit     # 纯逻辑单元测试 (node:test)
+pnpm test:e2e      # Playwright E2E
+pnpm build         # 双端生产构建
 ```
+
+### 5. 3D 场景审计（改完 3D 请跑一次）
+
+改 3D 最怕「代码看起来对，画面其实不对」。`pnpm audit:scene` 会驱动真实浏览器
+逐个切换四种场景模式、**逐个截屏**，并统计 WebGL 的**每帧 draw call**：
+
+```bash
+pnpm dev:web                                  # 另开一个终端
+pnpm audit:scene                              # 桌面 1440x900
+pnpm audit:scene -- --viewport 390x844        # 手机竖屏
+pnpm audit:scene -- --modes christmas,romantic
+```
+
+产物在 `.scene-audit/<name>/`（PNG + `report.json`）。draw call 是确定性指标，
+最适合用来对比性能改动的前后差异。
 
 ---
 

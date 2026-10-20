@@ -1,6 +1,11 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { getNextCycleState, resolveSavedVisuals } from "../../apps/web/lib/autoMode.ts"
+import {
+  getLayoutForMode,
+  getNextCycleState,
+  MODE_DEFAULT_LAYOUT,
+  resolveSavedVisuals,
+} from "../../apps/web/lib/autoMode.ts"
 import { GALLERY_LAYOUTS, SCENE_MODES } from "../../apps/web/types/index.ts"
 
 test("the cycle advances to the next scene mode", () => {
@@ -61,4 +66,27 @@ test("resolveSavedVisuals rejects unknown values instead of breaking the client"
     resolveSavedVisuals({ default_mode: null, default_layout: null }),
     { mode: null, layout: null },
   )
+})
+
+test("switching to christmas always uses the tree layout", () => {
+  assert.equal(getLayoutForMode("christmas", "grid"), "tree")
+  assert.equal(getLayoutForMode("christmas", "sphere"), "tree")
+})
+
+test("leaving christmas replaces the tree layout, which needs a tree", () => {
+  assert.equal(getLayoutForMode("birthday", "tree"), "sphere")
+  assert.equal(getLayoutForMode("romantic", "tree"), "helix")
+  assert.equal(getLayoutForMode("party", "tree"), "grid")
+})
+
+test("a layout the visitor picked is kept when it still makes sense", () => {
+  assert.equal(getLayoutForMode("party", "sphere"), "sphere")
+  assert.equal(getLayoutForMode("birthday", "grid"), "grid")
+})
+
+test("every mode has a default layout that exists", () => {
+  for (const mode of SCENE_MODES) {
+    assert.ok(GALLERY_LAYOUTS.includes(MODE_DEFAULT_LAYOUT[mode]), `unknown layout for ${mode}`)
+  }
+  assert.equal(MODE_DEFAULT_LAYOUT.christmas, "tree")
 })

@@ -67,3 +67,6 @@ test-results/
 # Python cache (font subsetting script)
 __pycache__/
 *.pyc
+
+# 3D scene audit output (screenshots + draw-call report)
+.scene-audit/

@@ -1,10 +1,145 @@
 # 项目优化总结
 
-> 最后更新：本轮「继续完善」改造之后。文中所有版本号、目录结构与命令均以仓库当前代码为准。
+> 最后更新：第三轮「全面优化 3D 场景」之后。文中所有版本号、目录结构与命令均以仓库当前代码为准。
 
-## 零、本轮最严重的问题：整个 3D 场景曾经永久空白
+## 零、本轮（第三轮）做了什么
 
-> 这是本轮排查出的**最高优先级缺陷**，在此单列。
+本轮把 3D 场景当成一个整体重做了一遍：**先量、再改、再看画面**。新增了
+`pnpm audit:scene`（见下）作为可重复的性能/视觉基线工具。
+
+### 0.1 先建立「看得见」的能力（新增 `scripts/scene-audit.mjs`）
+
+改 3D 最怕「代码看起来对，画面其实不对」。新工具会驱动真实浏览器、逐个切换
+四种场景模式、**截屏**，并直接统计 WebGL 的 **每帧 draw call / instance 数**：
+
+```bash
+pnpm audit:scene                                   # 桌面 1440x900
+pnpm audit:scene -- --viewport 390x844             # 手机竖屏
+pnpm audit:scene -- --modes christmas,romantic     # 只看某几个模式
+```
+
+draw call 是**确定性**指标（不像 FPS 受机器负载影响），所以它才是评估性能改动
+的真正依据。产物在 `.scene-audit/<name>/`，含 `report.json` 与各模式 PNG。
+
+### 0.2 性能：一帧曾经要渲染整个场景八次
+
+| 问题 | 原因 | 修复 |
+| --- | --- | --- |
+| 每帧多渲染 6 遍场景 | 会动的点光源开了 `castShadow`，立方体阴影要渲 6 个面 | 去掉该点光源的 `castShadow` |
+| 每帧多渲染 1 遍场景 | 装饰球的玻璃外壳用了 `transmission` | 改用「环境贴图 + 半透明」，视觉几乎一样，零额外渲染 |
+| 一帧 ~130 次 `useFrame` 回调 | 气球 ×80、树灯 ×30、烟花 ×16、装饰球每个一个 | 全部改为 `<instancedMesh>` + **一个** 回调批量写矩阵 |
+| 每帧白跑物理引擎 | `<Physics>` 里**一个刚体都没有** | 删除 `@react-three/cannon` 依赖与包裹 |
+| 阴影没人接 | 场景里没有地板，阴影渲了也白渲 | 新增地板圆盘，阴影才有落点 |
+| bloom 吃掉整帧 | `Bloom` 用默认 480 px 缓冲，软件渲染直接掉到 36 fps | 中档降到 240 px 缓冲，肉眼几乎无差别 |
+
+**draw call 变化（1440×900，1440 桌面）**
+
+| 模式 | 改前 | 改后 | 降幅 |
+| --- | --- | --- | --- |
+| christmas | 92 | 40 | **−57%** |
+| birthday | 59 | 47 | −20% |
+| romantic | 25 | 10 | **−60%** |
+| party | 62 | 53 | −15% |
+
+（改后的数字**包含**后期处理链；bloom 缓冲降到 240 px 后，在软件渲染下
+四种模式仍然稳定 60 fps。）
+
+### 0.3 画质：树灯几乎不存在，云朵比树还大
+
+这是**只有看画面才能发现**的一类 bug：
+
+1. **树灯被自己的过滤器吃光了。** `TwinkleLights` 用「保留锥面附近一圈」的
+   随机过滤挑位置，结果 30 盏灯只剩 1~2 盏。现在直接按树的轮廓螺旋布点。
+2. **云朵是糊在屏幕中央的一坨。** drei 会把每个云团乘以 `volume`，默认值 6，
+   一朵云比整棵树还大；而且它盖在主体正前方。现在 `volume` 降到 1.1~1.4、
+   透明度降到 0.16~0.22，并推到场景后方两侧。
+3. **树是三块扁平的深绿圆锥。** 没有环境贴图时，`meshPhysicalMaterial` 的
+   `transmission` 渲染出来就是死板的塑料块。现在用本地生成的
+   `<Environment>`（`<Lightformer>` 烘焙，**零网络请求**）提供 IBL，
+   树的 roughness 调到 0.62，并加了一圈「枝条环」打破光滑的圆锥轮廓。
+4. **浪漫模式几乎是空的。** 整屏只有两颗发光的小球和那坨云。现在新增
+   `HeartArch`——用经典心形曲线排布的发光节点阵列，场景终于有了主体。
+5. **没有地板。** 树、礼物、蛋糕全都悬在黑色虚空里，也没有落点。新增
+   `Ground`（径向 alpha 渐隐的圆盘，边缘溶进雾里）。
+6. **礼物和蛋糕挤在右下角、被控制栏挡住。** 它们离相机太近（`z = +3.4`），
+   透视放大后掉到画面底部。现在整体后移并重新分布。
+
+### 0.4 布局：照片其实没有挂在树上（真 bug）
+
+树画在 `y = -3`，相册却把照片排在 `y = -1` 附近——**每张照片都悬在它该在的
+树枝上方一米半**。而且两个地方各写了一份树的几何数字，改一处就漂移。
+
+现在树的轮廓只写在 `lib/treeLayout.ts`，**树和相册共用**：
+
+- `getTreeRadiusAt(y)`：某个高度上的树半径；
+- `getTreeSurfacePosition(i, n)`：第 i 张照片在树面上的落点（黄金角螺旋）。
+
+### 0.5 相机：手机上标题和礼物被切掉
+
+相机原来只按 16:9 桌面取景，手机上标题在画面外、礼物被切掉。现在
+`lib/cameraFraming.ts` 按视口宽高比反算距离与视场角：先**后退**，退不动了
+才**开大镜头**（开大镜头同样会把主体缩小，还会压平透视，所以是最后手段）。
+`components/CameraRig.tsx` 在运行时同步给 three.js，并且**保留用户已经转动的
+视角**（改窗口大小不会把视角甩掉）。
+
+### 0.6 模式与布局不再错配
+
+`tree` 布局依赖圣诞树。切到生日/浪漫/派对时，树没了，照片却还在「树形」里
+飘着。现在 `getLayoutForMode()` 负责这件事：进入圣诞一律 `tree`；离开圣诞时
+若布局是 `tree`，换成该模式更合适的布局（生日 `sphere`、浪漫 `helix`、
+派对 `grid`）；**访客自己挑的其它布局保持不动**。
+
+### 0.7 健壮性与可访问性
+
+- **错误边界**（`SceneErrorBoundary`）：WebGL 上下文丢失或某个组件抛错时，
+  以前会整页白屏；现在显示可读提示 + 「重新加载」按钮。
+- **`prefers-reduced-motion`**：以前完全被忽略。现在相机自动旋转关闭，
+  气球停止上升，装饰球停止漂浮，树灯停止闪烁。
+- **自适应 DPR**：`PerformanceMonitor` 真正驱动渲染分辨率，机器慢就自动降
+  分辨率，而不是直接掉到低画质档。
+- **HUD 按钮加了 `aria-label` / `aria-pressed`**，状态可被辅助技术读取。
+- **HUD 在手机上不再溢出**：控制条原本一行放不下（模式 + 布局 + 设置），
+  390 px 宽的手机上按钮直接跑到屏幕外点不到。现在会换行。
+- **贴图共享与释放**：以前每个装饰球各自下载同一张照片，**且从不释放**
+  （显存只增不减）。现在走 `lib/textureCache.ts` 的引用计数缓存，
+  最后一个使用者离开时才 `dispose()`。
+
+### 0.8 新的回归防护
+
+- **单元测试**（82 条）：新增 `sceneQuality` / `cameraFraming` / `treeLayout` /
+  `resourceCache` 四组；`galleryLayouts` 的球体断言改为「围绕自己的球心均匀
+  分布」（旧断言是围绕原点，布局一改就误报）。
+- **E2E 像素级断言**（`tests/scenePixels.js`，零依赖 PNG 解码）：
+  「画面不是纯色」——只断言 canvas 存在是抓不住「场景提交了但什么都没画」的。
+- **E2E 模式↔布局断言**、**E2E 减少动效断言**。
+- **Playwright 超时从 30 s 提到 90 s**：后端不可达时要等 10 s 超时，
+  剩下的时间留给 WebGL 启动，30 s 在负载稍高的机器上必然不够。
+
+### 0.9 本轮新增/改动的文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `apps/web/lib/stage.ts` | 舞台坐标系（地板、标题、内容尺寸） |
+| `apps/web/lib/treeLayout.ts` | 圣诞树轮廓，树与相册共用 |
+| `apps/web/lib/cameraFraming.ts` | 响应式相机取景 |
+| `apps/web/lib/sceneQuality.ts` | 画质档位的唯一出处 |
+| `apps/web/lib/resourceCache.ts` | 引用计数资源缓存（通用、可测） |
+| `apps/web/lib/textureCache.ts` | 照片贴图共享与释放 |
+| `apps/web/hooks/usePrefersReducedMotion.ts` | 减少动效偏好 |
+| `apps/web/hooks/useLocalTexture.ts` | 不挂起的本地贴图加载 |
+| `apps/web/components/SceneErrorBoundary.tsx` | 3D 崩溃隔离 |
+| `apps/web/components/AdaptiveQuality.tsx` | 自适应 DPR |
+| `apps/web/components/CameraRig.tsx` | 运行时同步相机 |
+| `apps/web/components/Ground.tsx` | 地板 |
+| `apps/web/components/HeartArch.tsx` | 浪漫模式的心形灯阵 |
+| `scripts/scene-audit.mjs` | 场景性能/视觉审计工具 |
+| `tests/scenePixels.js` | 零依赖 PNG 分析（E2E 用） |
+
+---
+
+## 零之前、本轮最严重的问题：整个 3D 场景曾经永久空白
+
+> 这是前一轮排查出的**最高优先级缺陷**，在此单列。
 
 ### 现象
 
@@ -297,10 +432,12 @@ birthday-photo/
 │   └── migrations/     # 存量库的增量迁移
 ├── scripts/
 │   ├── dev.mjs                    # 零依赖的并行开发服务器启动器
-│   ├── generate-textures.mjs      # 程序化生成云朵 / 占位贴图（无需联网）
-│   └── subset-display-font.py     # 中文字体子集化（固定地址 + SHA256 校验）
+│   ├── generate-textures.mjs      # 程序化生成云朵 / 占位 / 地板贴图（无需联网）
+│   ├── subset-display-font.py     # 中文字体子集化（固定地址 + SHA256 校验）
+│   └── scene-audit.mjs            # 3D 场景审计：截图 + 每帧 draw call 统计
 ├── tests/
 │   ├── unit/           # node:test 纯逻辑测试
+│   ├── scenePixels.js  # 零依赖 PNG 解码（E2E 像素断言用）
 │   └── *.spec.js       # Playwright E2E
 └── package.json        # 仓库级脚本入口
 ```
@@ -314,7 +451,11 @@ pnpm typecheck       # 双端类型检查
 pnpm test:unit       # 单元测试
 pnpm test:e2e        # Playwright E2E
 pnpm build           # 双端生产构建
+pnpm audit:scene     # 3D 场景审计：逐模式截图 + 每帧 draw call 统计
 ```
+
+> `pnpm audit:scene` 需要先启动 `pnpm dev:web`。它会自建浏览器上下文、
+> 注入 WebGL 计数器，无需额外依赖；`--viewport 390x844` 可模拟手机。
 
 > `apps/web/public/fonts/zcool-qingke-huangyou.woff2` 为自托管的 ZCOOL 中文字体子集
 > （约 900 KB，Latin + 标点 + 3755 个常用简体字）；重新生成：
@@ -325,7 +466,11 @@ pnpm build           # 双端生产构建
 
 1. **图片优化** — 统一走 Next.js Image 的 `sizes` / `quality`，或预生成 WebP。
 2. **缓存策略** — 为只读接口补 HTTP 缓存头，离线场景引入 Service Worker。
-3. **可观测性** — 接入 `pnpm analyze` 与 Lighthouse，建立体积回归基线。
-4. **音乐存储桶** — 目前背景音乐与图片共用 `photos` 桶，建议拆分独立 bucket 与 MIME 白名单。
+3. **可观测性** — 接入 `pnpm analyze` 与 Lighthouse，建立体积回归基线；
+   `pnpm audit:scene` 的 draw call 数字也可以做成 CI 里的回归阈值。
+4. **真实照片回归测试** — 目前的 E2E 跑在「后端不可达」的状态下（相册为空）。
+   等本地 Supabase 起得来后，应补一组带真实照片的截图基线。
 5. **字体极端字符** — 子集覆盖 3755 个常用简体字，生僻字会回退到系统 CJK 字体；
    若需完整字集，可用 `scripts/subset-display-font.py` 扩大字符集重新生成。
+6. **场景性能预算** — 目前 draw call 是「测出来」的，还不是「卡住」的。
+   可以给 `pnpm audit:scene` 加一个阈值文件，CI 里超出预算就失败。

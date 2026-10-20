@@ -4,8 +4,9 @@
  *
  * 1. `cloud.png`       - the soft puff the atmospheric clouds are built from
  * 2. `placeholder.png` - the stand-in shown when a photo cannot be loaded
+ * 3. `ground.png`      - the floor disc, with a radial alpha falloff
  *
- * Both are generated locally on purpose: drei's <Cloud> ships a default
+ * All are generated locally on purpose: drei's <Cloud> ships a default
  * texture hosted on a public CDN, and `useTexture` suspends until it
  * arrives - a CDN that is unreachable (blocked, offline, air-gapped) leaves
  * the whole <Suspense> boundary pending and the entire scene blank. The
@@ -162,6 +163,44 @@ function createPlaceholderTexture(size = 256) {
   return encodePng(size, pixels)
 }
 
+/**
+ * The floor disc.
+ *
+ * White with a radial alpha falloff, so the material's colour decides how
+ * the floor looks while the alpha lets it dissolve into the fog instead of
+ * ending in a hard edge. A little noise keeps the surface from looking
+ * like a flat sheet of colour.
+ */
+function createGroundTexture(size = 256) {
+  const pixels = Buffer.alloc(size * size * 4)
+  const center = (size - 1) / 2
+  let offset = 0
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (x - center) / center
+      const dy = (y - center) / center
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      // Smooth falloff to zero at the rim.
+      let alpha = 1 - distance
+      alpha = alpha <= 0 ? 0 : alpha * alpha * (3 - 2 * alpha)
+
+      const noise = fractalNoise((x / size) * 5, (y / size) * 5)
+      // Subtle radial rings, like light pooling on a stage.
+      const rings = 0.88 + Math.sin(distance * 14) * 0.05
+      const value = Math.round(Math.min(1, Math.max(0, rings * (0.82 + noise * 0.36))) * 255)
+
+      pixels[offset++] = value
+      pixels[offset++] = value
+      pixels[offset++] = value
+      pixels[offset++] = Math.round(alpha * 255)
+    }
+  }
+
+  return encodePng(size, pixels)
+}
+
 mkdirSync(OUT_DIR, { recursive: true })
 
 const cloud = createCloudTexture()
@@ -171,3 +210,7 @@ console.log(`Wrote ${resolve(OUT_DIR, 'cloud.png')} (128x128, ${cloud.length} by
 const placeholder = createPlaceholderTexture()
 writeFileSync(resolve(OUT_DIR, 'placeholder.png'), placeholder)
 console.log(`Wrote ${resolve(OUT_DIR, 'placeholder.png')} (256x256, ${placeholder.length} bytes)`)
+
+const ground = createGroundTexture()
+writeFileSync(resolve(OUT_DIR, 'ground.png'), ground)
+console.log(`Wrote ${resolve(OUT_DIR, 'ground.png')} (256x256, ${ground.length} bytes)`)

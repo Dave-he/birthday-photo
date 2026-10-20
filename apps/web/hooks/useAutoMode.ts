@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useStore } from '@/hooks/useStore'
-import { getNextCycleState, resolveSavedVisuals } from '@/lib/autoMode'
+import { getNextCycleState, getLayoutForMode, resolveSavedVisuals } from '@/lib/autoMode'
 import { SceneMode, GalleryLayout } from '@/types'
 
 export function useAutoMode(hasStarted: boolean) {
@@ -29,6 +29,19 @@ export function useAutoMode(hasStarted: boolean) {
         if (savedLayout) setGalleryLayout(savedLayout)
     }, [settings])
 
+    /**
+     * Switch to another scene mode.
+     *
+     * The layout follows when it has to: the `tree` layout needs the
+     * christmas tree, so switching away from christmas replaces it with
+     * the layout that suits the new scene. Every other layout is the
+     * visitor's own choice and is left alone.
+     */
+    const changeMode = useCallback((next: SceneMode) => {
+        setMode(next)
+        setGalleryLayout((current) => getLayoutForMode(next, current))
+    }, [])
+
     useEffect(() => {
         if (!hasStarted) return
         if (settings?.auto_mode_cycle_enabled === false) return
@@ -50,5 +63,5 @@ export function useAutoMode(hasStarted: boolean) {
         return () => clearInterval(interval)
       }, [hasStarted, settings?.auto_mode_cycle_enabled, settings?.mode_cycle_min_seconds, settings?.mode_cycle_max_seconds])
 
-      return { mode, setMode, galleryLayout, setGalleryLayout }
+      return { mode, setMode: changeMode, galleryLayout, setGalleryLayout }
 }

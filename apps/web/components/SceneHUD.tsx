@@ -180,7 +180,7 @@ export default function SceneHUD({
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl p-4 w-64 shadow-2xl"
+            className="absolute bottom-32 sm:bottom-28 left-1/2 -translate-x-1/2 z-30 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl p-4 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
         >
             <h3 className="text-white text-xs font-bold uppercase tracking-wider mb-4 border-b border-white/10 pb-2">Performance & Visuals</h3>
             
@@ -242,18 +242,26 @@ export default function SceneHUD({
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col md:flex-row gap-4 items-center"
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-3 w-full max-w-[100vw] px-2"
       >
-        {/* Control Bar */}
-        <div className="flex gap-2 p-2 bg-black/30 backdrop-blur-xl rounded-full border border-white/10 shadow-2xl">
+        {/* Control Bar
+            *
+            * The bar wraps on narrow screens: the mode switcher, the layout
+            * switcher and the settings button used to sit on one line, which
+            * was wider than a phone — the controls ran off the screen and
+            * could not be reached at all. */}
+        <div className="flex flex-wrap items-center justify-center gap-1 p-2 bg-black/30 backdrop-blur-xl rounded-full border border-white/10 shadow-2xl max-w-[100%]">
           
           {/* Mode Switcher */}
           <div className="flex gap-1">
             {MODE_ITEMS.map((item) => (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => onModeChange(item.id)}
-                className={`relative group p-3 rounded-full transition-all duration-300 ${
+                aria-label={item.label}
+                aria-pressed={mode === item.id}
+                className={`relative group p-2 sm:p-3 rounded-full transition-all duration-300 ${
                   mode === item.id
                     ? 'bg-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.2)] scale-110'
                     : 'text-white/60 hover:bg-white/10 hover:text-white'
@@ -268,15 +276,17 @@ export default function SceneHUD({
             ))}
           </div>
 
-          <div className="w-px h-8 bg-white/10 mx-2 self-center"></div>
+          <div className="hidden sm:block w-px h-8 bg-white/10 mx-2 self-center"></div>
 
           {/* Layout Switcher */}
           <div className="flex gap-1 bg-black/20 rounded-full p-1">
             {GALLERY_LAYOUTS.map((layout) => (
               <button
                 key={layout}
+                type="button"
                 onClick={() => onLayoutChange(layout)}
-                className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-300 capitalize ${
+                aria-pressed={galleryLayout === layout}
+                className={`px-3 sm:px-4 py-2 rounded-full text-xs font-medium transition-all duration-300 capitalize ${
                   galleryLayout === layout
                     ? 'bg-white/90 text-black shadow-lg scale-105'
                     : 'text-white/50 hover:bg-white/10 hover:text-white'
@@ -287,12 +297,15 @@ export default function SceneHUD({
             ))}
           </div>
 
-          <div className="w-px h-8 bg-white/10 mx-2 self-center"></div>
+          <div className="hidden sm:block w-px h-8 bg-white/10 mx-2 self-center"></div>
 
           {/* Settings Toggle */}
           <button
+            type="button"
             onClick={() => setShowSettings(!showSettings)}
-            className={`p-3 rounded-full transition-all duration-300 ${
+            aria-label="Settings"
+            aria-pressed={showSettings}
+            className={`p-2 sm:p-3 rounded-full transition-all duration-300 ${
               showSettings 
                 ? 'bg-white/20 text-white' 
                 : 'text-white/40 hover:bg-white/10 hover:text-white'
@@ -306,8 +319,10 @@ export default function SceneHUD({
               button never silently does nothing. */}
           {settings?.bg_music_url && !musicError && (
             <button
+              type="button"
               onClick={onToggleMusic}
-              className={`p-3 rounded-full transition-all duration-300 ${
+              aria-label={isPlaying ? "Pause Music" : "Play Music"}
+              className={`p-2 sm:p-3 rounded-full transition-all duration-300 ${
                 isPlaying 
                   ? 'bg-amber-500/20 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]' 
                   : 'text-white/40 hover:bg-white/10 hover:text-white'

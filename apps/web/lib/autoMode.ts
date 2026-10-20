@@ -9,6 +9,40 @@ export interface CycleState {
 }
 
 /**
+ * The layout each mode looks best in.
+ *
+ * The `tree` layout arranges the photos along the branches of the
+ * christmas tree — in the other three scenes there is no tree, so the
+ * photos used to keep floating in an empty spiral with nothing to hang
+ * them on.
+ */
+export const MODE_DEFAULT_LAYOUT: Record<SceneMode, GalleryLayout> = {
+  christmas: 'tree',
+  birthday: 'sphere',
+  romantic: 'helix',
+  party: 'grid',
+}
+
+/**
+ * The layout a mode should use when the visitor switches to it.
+ *
+ * The christmas scene always uses the `tree` layout, because that is the
+ * layout whose photos hang on the christmas tree. The other way round, the
+ * `tree` layout is replaced when the visitor leaves christmas — in the
+ * other three scenes there is no tree, so the photos used to keep
+ * floating in an empty spiral with nothing to hang them on. Every other
+ * layout is the visitor's own choice and is left alone.
+ */
+export function getLayoutForMode(
+  mode: SceneMode,
+  currentLayout: GalleryLayout,
+): GalleryLayout {
+  if (mode === 'christmas') return 'tree'
+  if (currentLayout === 'tree') return MODE_DEFAULT_LAYOUT[mode]
+  return currentLayout
+}
+
+/**
  * Pick the next mode/layout pair of the auto-cycle.
  *
  * The result is derived from the *current* state rather than from a private

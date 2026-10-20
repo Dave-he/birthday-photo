@@ -1,11 +1,14 @@
 'use client'
 
 import { Html } from '@react-three/drei'
+import { TITLE_LOCAL_Y } from '@/lib/stage'
 
 interface SceneTitleProps {
   title: string
   color: string
   accent: string
+  /** Height in stage space (the floor is `y = 0`). */
+  y?: number
 }
 
 /**
@@ -19,10 +22,10 @@ interface SceneTitleProps {
  * text rendering with the self-hosted `@font-face` is instant, always
  * succeeds, and keeps Chinese characters intact.
  */
-export default function SceneTitle({ title, color, accent }: SceneTitleProps) {
+export default function SceneTitle({ title, color, accent, y = TITLE_LOCAL_Y }: SceneTitleProps) {
   return (
     <Html
-      position={[0, 4.2, 0]}
+      position={[0, y, 0]}
       center
       zIndexRange={[10, 0]}
       style={{ pointerEvents: 'none' }}

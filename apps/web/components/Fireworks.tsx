@@ -1,191 +1,211 @@
 /* eslint-disable */
 'use client'
-import { useRef, useMemo, useState } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PARTICLE_FRAGMENT_SHADER } from '@/lib/particleShader'
 
-// Simple Sound Manager for Fireworks
-const playExplosionSound = (volume: number = 0.3) => {
-    // Placeholder for sound logic
+const FireworkVertexShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uSize;
+  uniform float uPixelRatio;
+
+  attribute vec3 aVelocity;
+  attribute float aLife;
+
+  void main() {
+    vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+
+    // Explosion physics.
+    // uTime here is "time since explosion started".
+
+    // Gravity
+    float gravity = -0.5 * uTime * uTime;
+
+    modelPosition.xyz += aVelocity * uTime * 4.0;
+    modelPosition.y += gravity;
+
+    vec4 viewPosition = viewMatrix * modelPosition;
+    vec4 projectionPosition = projectionMatrix * viewPosition;
+
+    gl_Position = projectionPosition;
+
+    // Size attenuation
+    // Scale down as life fades
+    float scale = max(0.0, 1.0 - (uTime / aLife));
+
+    gl_PointSize = uSize * scale * uPixelRatio;
+    gl_PointSize *= (1.0 / -viewPosition.z);
+  }
+`
+
+/** How long a firework takes from launch to burst, in seconds. */
+const LAUNCH_DURATION = 1.0
+/** How long one full launch → burst → fade cycle takes. */
+const CYCLE_DURATION = 3.5
+/** How many particles a single burst has. */
+const PARTICLES_PER_BURST = 100
+
+interface Burst {
+  position: [number, number, number]
+  color: THREE.Color
+  delay: number
+  launch: THREE.Object3D | null
+  points: THREE.Object3D | null
+  material: THREE.ShaderMaterial
 }
 
-const FireworkMaterial = {
-  uniforms: {
-    uTime: { value: 0 },
-    uColor: { value: new THREE.Color('#ffffff') },
-    uSize: { value: 20.0 },
-    uPixelRatio: { value: 1 }
-  },
-  vertexShader: `
-    uniform float uTime;
-    uniform float uSize;
-    uniform float uPixelRatio;
+/**
+ * The fireworks.
+ *
+ * Every burst used to run its own `useFrame` callback and flip a React
+ * state variable to remember that it had exploded — which re-rendered the
+ * component once per cycle for no visible reason. The bursts are now
+ * driven by a single frame callback and the "has exploded" state lives in
+ * a plain field.
+ */
+export default function Fireworks({
+  count = 5,
+  reducedMotion = false,
+}: {
+  count?: number
+  reducedMotion?: boolean
+}) {
+  const gl = useThree((state) => state.gl)
+  const groupRef = useRef<THREE.Group>(null)
 
-    attribute vec3 aVelocity;
-    attribute float aLife;
-
-    void main() {
-      vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-
-      // Explosion physics
-      // uTime here is "time since explosion started"
-
-      // Gravity
-      float gravity = -0.5 * uTime * uTime;
-
-      modelPosition.xyz += aVelocity * uTime * 5.0;
-      modelPosition.y += gravity;
-
-      vec4 viewPosition = viewMatrix * modelPosition;
-      vec4 projectionPosition = projectionMatrix * viewPosition;
-
-      gl_Position = projectionPosition;
-
-      // Size attenuation
-      // Scale down as life fades
-      float scale = max(0.0, 1.0 - (uTime / aLife));
-
-      gl_PointSize = uSize * scale * uPixelRatio;
-      gl_PointSize *= (1.0 / -viewPosition.z);
-    }
-  `,
-  fragmentShader: PARTICLE_FRAGMENT_SHADER,
-}
-
-function Firework({ position, color, delay, soundEnabled }: { position: [number, number, number], color: string, delay: number, soundEnabled: boolean }) {
-  const points = useRef<THREE.Points>(null)
-  const launchRef = useRef<THREE.Mesh>(null)
-  
-  const [exploded, setExploded] = useState(false)
-  const startTimeRef = useRef<number | null>(null)
-
-  // Particle Data
-  const { positions, velocities, lifes } = useMemo(() => {
-    const count = 100
-    const positions = new Float32Array(count * 3)
-    const velocities = new Float32Array(count * 3)
-    const lifes = new Float32Array(count)
-
-    for (let i = 0; i < count; i++) {
-        const i3 = i * 3
-        positions[i3] = 0
-        positions[i3+1] = 0
-        positions[i3+2] = 0
-        
-        // Spherical explosion
-        const theta = Math.random() * Math.PI * 2
-        const phi = Math.acos((Math.random() * 2) - 1)
-        const speed = 0.5 + Math.random() * 0.5 // Faster spread
-        
-        velocities[i3] = speed * Math.sin(phi) * Math.cos(theta)
-        velocities[i3+1] = speed * Math.sin(phi) * Math.sin(theta)
-        velocities[i3+2] = speed * Math.cos(phi)
-
-        lifes[i] = 1.0 + Math.random() * 0.5 // 1.0s to 1.5s life
-    }
-    
-    return { positions, velocities, lifes }
-  }, [])
-
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
+  const bursts = useMemo<Burst[]>(() => {
+    const colors = ['#ff0040', '#00ff40', '#0040ff', '#ffeb3b', '#ff00ff', '#00ffff']
+    return new Array(Math.max(0, count)).fill(0).map(() => {
+      const color = new THREE.Color(colors[Math.floor(Math.random() * colors.length)])
+      const material = new THREE.ShaderMaterial({
         uniforms: {
-            uTime: { value: 0 },
-            uColor: { value: new THREE.Color(color) },
-            uSize: { value: 50.0 },
-            uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 1 }
+          uTime: { value: 0 },
+          uColor: { value: color },
+          // The bursts sit well behind the stage, so the point size has
+          // to be large to still read as sparks at that distance.
+          uSize: { value: 200.0 },
+          uPixelRatio: { value: 1 },
         },
-        vertexShader: FireworkMaterial.vertexShader,
-        fragmentShader: FireworkMaterial.fragmentShader,
+        vertexShader: FireworkVertexShader,
+        fragmentShader: PARTICLE_FRAGMENT_SHADER,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending
+        blending: THREE.AdditiveBlending,
+      })
+
+      return {
+        position: [
+          (Math.random() - 0.5) * 18,
+          6.5 + Math.random() * 3,
+          (Math.random() - 0.5) * 12 - 6,
+        ],
+        color,
+        delay: Math.random() * CYCLE_DURATION,
+        launch: null,
+        points: null,
+        material,
+      }
     })
-  }, [color])
+  }, [count])
+
+  // The particle buffers are rebuilt whenever the number of bursts changes.
+  const geometries = useMemo(() => {
+    return bursts.map(() => {
+      const positions = new Float32Array(PARTICLES_PER_BURST * 3)
+      const velocities = new Float32Array(PARTICLES_PER_BURST * 3)
+      const lifes = new Float32Array(PARTICLES_PER_BURST)
+
+      for (let i = 0; i < PARTICLES_PER_BURST; i++) {
+        const i3 = i * 3
+        // Spherical explosion
+        const theta = Math.random() * Math.PI * 2
+        const phi = Math.acos(Math.random() * 2 - 1)
+        const speed = 0.5 + Math.random() * 0.5
+
+        velocities[i3] = speed * Math.sin(phi) * Math.cos(theta)
+        velocities[i3 + 1] = speed * Math.sin(phi) * Math.sin(theta)
+        velocities[i3 + 2] = speed * Math.cos(phi)
+
+        lifes[i] = 1.0 + Math.random() * 0.5 // 1.0s to 1.5s life
+      }
+
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3))
+      geometry.setAttribute('aLife', new THREE.BufferAttribute(lifes, 1))
+      return geometry
+    })
+  }, [bursts])
+
+  // Dispose the GPU resources when the bursts are replaced or unmounted.
+  useEffect(() => {
+    return () => {
+      geometries.forEach((geometry) => geometry.dispose())
+      bursts.forEach((burst) => burst.material.dispose())
+    }
+  }, [bursts, geometries])
+
+  // The particle size has to follow the renderer's pixel ratio, which
+  // changes with the adaptive DPR — a frozen value makes the sparks the
+  // wrong size on high-density screens.
+  useEffect(() => {
+    const ratio = gl.getPixelRatio()
+    bursts.forEach((burst) => {
+      burst.material.uniforms.uPixelRatio.value = ratio
+    })
+  }, [bursts, gl])
 
   useFrame((state) => {
-    if (!launchRef.current || !points.current) return
-
     const time = state.clock.elapsedTime
-    const cycleDuration = 3.5
-    const t = (time + delay) % cycleDuration
-    
-    // Launch Phase
-    if (t < 1.0) {
-        launchRef.current.visible = true
-        points.current.visible = false
-        if (exploded) setExploded(false)
-        
-        const progress = t
-        // Move from y-5 to y=0 (relative to group position)
-        launchRef.current.position.set(0, -5 + (progress * 5), 0)
-        launchRef.current.scale.setScalar(1 - (progress * 0.5))
-    } 
-    // Explosion Phase
-    else {
-        launchRef.current.visible = false
-        points.current.visible = true
-        
-        if (!exploded) {
-            setExploded(true)
-            if (soundEnabled) playExplosionSound()
-        }
 
-        const explosionTime = t - 1.0
-        // Update shader time
-        ;(points.current.material as THREE.ShaderMaterial).uniforms.uTime.value = explosionTime
+    for (const burst of bursts) {
+      const t = ((time + burst.delay) % CYCLE_DURATION + CYCLE_DURATION) % CYCLE_DURATION
+
+      if (t < LAUNCH_DURATION) {
+        // Launch phase — the shell climbs towards the burst point.
+        if (burst.launch) {
+          burst.launch.visible = true
+          const progress = t
+          burst.launch.position.set(0, -5 + progress * 5, 0)
+          burst.launch.scale.setScalar(1 - progress * 0.5)
+        }
+        if (burst.points) burst.points.visible = false
+      } else {
+        // Explosion phase.
+        if (burst.launch) burst.launch.visible = false
+        if (burst.points) burst.points.visible = true
+        burst.material.uniforms.uTime.value = reducedMotion
+          ? 0
+          : Math.min(t - LAUNCH_DURATION, CYCLE_DURATION - LAUNCH_DURATION)
+      }
     }
   })
 
   return (
-    <group position={position}>
-        {/* Launch Trail */}
-        <mesh ref={launchRef}>
+    <group ref={groupRef}>
+      {bursts.map((burst, index) => (
+        <group key={index} position={burst.position}>
+          {/* Launch Trail */}
+          <mesh
+            ref={(node) => {
+              burst.launch = node
+            }}
+          >
             <sphereGeometry args={[0.08, 8, 8]} />
             <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
-        </mesh>
+          </mesh>
 
-        {/* Explosion Points */}
-        <points ref={points} material={material}>
-            <bufferGeometry>
-                <bufferAttribute
-                    attach="attributes-position"
-                    args={[positions, 3]}
-                />
-                <bufferAttribute
-                    attach="attributes-aVelocity"
-                    args={[velocities, 3]}
-                />
-                <bufferAttribute
-                    attach="attributes-aLife"
-                    args={[lifes, 1]}
-                />
-            </bufferGeometry>
-        </points>
+          {/* Explosion Points */}
+          <points
+            ref={(node) => {
+              burst.points = node
+            }}
+            material={burst.material}
+            geometry={geometries[index]}
+          />
+        </group>
+      ))}
     </group>
   )
-}
-
-export default function Fireworks({ count = 5, soundEnabled = false }: { count?: number, soundEnabled?: boolean }) {
-    const [fireworksData] = useState(() => {
-        const colors = ['#ff0040', '#00ff40', '#0040ff', '#ffeb3b', '#ff00ff', '#00ffff']
-        return new Array(count).fill(0).map(() => ({
-            position: [
-                (Math.random() - 0.5) * 20,
-                8 + Math.random() * 4,
-                (Math.random() - 0.5) * 10 - 5
-            ] as [number, number, number],
-            color: colors[Math.floor(Math.random() * colors.length)],
-            delay: Math.random() * 4
-        }))
-    })
-
-    return (
-        <group>
-            {fireworksData.map((data, i) => (
-                <Firework key={i} {...data} soundEnabled={soundEnabled} />
-            ))}
-        </group>
-    )
 }

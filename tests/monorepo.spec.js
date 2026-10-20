@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { analyseImage } = require('./scenePixels.js');
 
 /**
  * The admin panel runs on Vite's default dev port (5173). The Docker image
@@ -6,6 +7,21 @@ const { test, expect } = require('@playwright/test');
  * running the suite against a containerised admin.
  */
 const ADMIN_URL = process.env.E2E_ADMIN_URL || 'http://localhost:5173';
+
+/**
+ * Enter the scene and wait until it has actually committed.
+ *
+ * The floating title only exists once the R3F tree has rendered, so it is
+ * the reliable "the scene is really there" signal.
+ */
+async function enterScene(page) {
+  await page.goto('/');
+  const enterButton = page.locator('button:has-text("ENTER EXPERIENCE")');
+  await enterButton.waitFor({ timeout: 30000 });
+  await enterButton.click();
+  await expect(page.locator('.font-display')).toBeVisible({ timeout: 20000 });
+  return page.locator('.scene-canvas canvas');
+}
 
 test.describe('Birthday Photo - 3D Electronic Gallery E2E Tests', () => {
 
@@ -143,6 +159,61 @@ test.describe('Birthday Photo - 3D Electronic Gallery E2E Tests', () => {
     // checked for plausibility, not compared against the fallback.)
     expect(result.styledWidth).toBeGreaterThan(48 * 1.5);
     expect(result.styledWidth).toBeLessThan(48 * 5);
+  });
+
+  test('should paint an actual scene, not a blank canvas', async ({ page }) => {
+    // A visible <canvas> proves nothing: a blank scene has a canvas too,
+    // and so has a scene that renders nothing but a flat background. The
+    // only way to catch that is to look at the pixels.
+    const canvas = await enterScene(page);
+    await expect(canvas).toBeVisible({ timeout: 10000 });
+    // Give the intro animation a moment to settle.
+    await page.waitForTimeout(1500);
+
+    const shot = await canvas.screenshot();
+    const stats = analyseImage(shot);
+
+    expect(stats, 'the screenshot could not be decoded').not.toBeNull();
+    // A flat, empty frame has a couple of colours at most.
+    expect(stats.distinctColors).toBeGreaterThan(50);
+    // ...and no colour variation at all.
+    expect(stats.saturatedRatio).toBeGreaterThan(0.01);
+    // The background may dominate, but it must not be everything.
+    expect(stats.dominantRatio).toBeLessThan(0.98);
+
+    console.log(
+      `Scene pixels: ${stats.distinctColors} colours, ` +
+      `${(stats.saturatedRatio * 100).toFixed(1)}% saturated, ` +
+      `${(stats.dominantRatio * 100).toFixed(1)}% background.`,
+    );
+  });
+
+  test('should give every scene mode a gallery layout that fits it', async ({ page }) => {
+    // The photos hang on the christmas tree in the christmas scene, and
+    // they used to keep floating in that empty spiral in the other three
+    // scenes, where there is no tree to hang them on.
+    await enterScene(page);
+
+    const layoutButton = (layout) =>
+      page.locator(`button[aria-pressed]`).filter({ hasText: new RegExp(`^${layout}$`, 'i') });
+
+    await expect(layoutButton('tree')).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByRole('button', { name: 'Birthday', exact: true }).click();
+    await expect(layoutButton('tree')).toHaveAttribute('aria-pressed', 'false');
+    await expect(layoutButton('sphere')).toHaveAttribute('aria-pressed', 'true');
+
+    // Back to christmas and the tree layout comes back.
+    await page.getByRole('button', { name: 'Christmas', exact: true }).click();
+    await expect(layoutButton('tree')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('should keep the scene usable when the visitor asks for less motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const canvas = await enterScene(page);
+    await expect(canvas).toBeVisible({ timeout: 10000 });
+    // The scene still has to render with the motion turned down.
+    await expect(page.locator('.font-display')).toBeVisible();
   });
 
   test('should successfully load the Refine Admin Panel', async ({ page }) => {
