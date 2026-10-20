@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Scene, Settings, SceneMode, GalleryLayout, GALLERY_LAYOUTS, SCENE_MODES } from '@/types'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -19,6 +19,8 @@ interface SceneHUDProps {
   settings: Settings | null
   isPlaying: boolean
   onToggleMusic: () => void
+  /** Set when the configured background track could not be loaded. */
+  musicError?: boolean
   qualityPreset?: QualityPreset
   onQualityPresetChange?: (val: QualityPreset) => void
   particleMultiplier?: number
@@ -58,6 +60,7 @@ export default function SceneHUD({
   settings,
   isPlaying,
   onToggleMusic,
+  musicError,
   qualityPreset,
   onQualityPresetChange,
   particleMultiplier,
@@ -67,6 +70,17 @@ export default function SceneHUD({
 }: SceneHUDProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const musicErrorShown = useRef(false)
+
+  // Tell the visitor why the music toggle disappeared. Hooks have to run
+  // before the early return below.
+  useEffect(() => {
+    if (!musicError || musicErrorShown.current) return
+    musicErrorShown.current = true
+    setToast({ message: 'Background music could not be loaded', type: 'error' })
+    const timer = window.setTimeout(() => setToast(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [musicError])
 
   if (!hasStarted) return null
 
@@ -288,8 +302,9 @@ export default function SceneHUD({
             ⚙️
           </button>
 
-          {/* Music Toggle */}
-          {settings?.bg_music_url && (
+          {/* Music Toggle — hidden when the track could not be loaded, so the
+              button never silently does nothing. */}
+          {settings?.bg_music_url && !musicError && (
             <button
               onClick={onToggleMusic}
               className={`p-3 rounded-full transition-all duration-300 ${

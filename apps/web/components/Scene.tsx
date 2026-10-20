@@ -40,6 +40,7 @@ export default function Scene() {
 
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [musicError, setMusicError] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [qualityPreset, setQualityPreset] = useState<'auto' | 'low' | 'high'>('auto')
@@ -86,11 +87,18 @@ export default function Scene() {
   // Handle Music
   useEffect(() => {
     if (settings?.bg_music_url) {
-      audioRef.current = new Audio(settings.bg_music_url)
-      audioRef.current.loop = true
-      audioRef.current.volume = 0.5
+      const audio = new Audio(settings.bg_music_url)
+      audio.loop = true
+      audio.volume = 0.5
+      // A track that cannot be loaded (404, unreachable host) would otherwise
+      // fail silently - the toggle would just do nothing.
+      audio.addEventListener('error', () => {
+        console.warn('Background music could not be loaded:', settings.bg_music_url)
+        setMusicError(true)
+      })
+      audioRef.current = audio
     }
-    
+
     return () => {
         if(audioRef.current) {
             audioRef.current.pause();
@@ -153,6 +161,7 @@ export default function Scene() {
         settings={settings}
         isPlaying={isPlaying}
         onToggleMusic={toggleMusic}
+        musicError={musicError}
         qualityPreset={qualityPreset}
         onQualityPresetChange={setQualityPreset}
         particleMultiplier={pm}

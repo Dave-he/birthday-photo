@@ -7,6 +7,9 @@
 -- ==========================================
 -- 1. Initialize Default Settings
 -- ==========================================
+-- No background track by default: a placeholder URL would make the client
+-- request a file that does not exist on every visit. Upload one through the
+-- admin panel (Settings -> Upload Music File) to enable the music toggle.
 INSERT INTO settings (
   bg_music_url, 
   snow_density, 
@@ -19,7 +22,7 @@ INSERT INTO settings (
   particle_multiplier
 )
 SELECT 
-  'https://example.com/jingle-bells.mp3', 
+  NULL, 
   200, 
   true, 
   'Merry Christmas!',
