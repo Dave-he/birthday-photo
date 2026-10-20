@@ -41,9 +41,9 @@
 ## 快速开始
 
 ```bash
-# 安装依赖
-pnpm install
+# 安装依赖（web / admin / 根工具链）
+pnpm install:all
 
-# 启动开发环境
+# 启动开发环境（web:3000, admin:5173）
 pnpm dev
 ```

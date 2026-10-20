@@ -7,7 +7,7 @@
 ## 技术栈
 
 ### 前端展示端 (apps/web)
-- **框架**: Next.js 14+ (App Router)
+- **框架**: Next.js 16 (App Router)
 - **3D 引擎**: React Three Fiber + React Three Drei
 - **动画**: Framer Motion + React Spring
 - **样式**: Tailwind CSS
@@ -245,8 +245,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 ## 本地开发
 
 ### 1. 安装依赖
+仓库的两个应用各自独立安装依赖，根目录提供统一入口：
 ```bash
-pnpm install
+pnpm install:all
 ```
 
 ### 2. 启动开发服务器
@@ -258,16 +259,20 @@ pnpm dev
 
 #### 仅启动 Web 端
 ```bash
-cd apps/web
-pnpm dev
-# 访问 http://localhost:3001
+pnpm dev:web
+# 访问 http://localhost:3000
 ```
 
 #### 仅启动 Admin 端
 ```bash
-cd apps/admin
-pnpm dev
+pnpm dev:admin
 # 访问 http://localhost:5173
+```
+
+### 3. 校验
+```bash
+pnpm typecheck   # 双端类型检查
+pnpm test:unit   # 单元测试
 ```
 
 ## 生产部署

@@ -92,12 +92,17 @@
 #### 第二步：一键运行服务
 进入根目录，使用 pnpm 一键启动开发环境：
 ```bash
-pnpm install
+pnpm install:all
 pnpm dev
 ```
+> 两个应用各自独立安装依赖（各自持有 lockfile），`pnpm install:all` 会依次安装
+> web、admin 与根目录工具链；`pnpm dev` 通过 `scripts/dev.mjs` 并行拉起两个开发服务器。
+
 启动成功后，即可通过以下链接访问系统：
 *   **前端 3D 相册前端**: `http://localhost:3000`
-*   **后台管理系统**: `http://localhost:8080`
+*   **后台管理系统**: `http://localhost:5173`（Docker 部署为 `http://localhost:8080`）
+
+也可以单独启动某一端：`pnpm dev:web` / `pnpm dev:admin`。
 
 ---
 
@@ -111,7 +116,10 @@ pnpm dev
     *   `database/schema.sql` (创建 scenes, members, photos, settings 数据表结构)。
     *   `database/policy.sql` (启用并配置 RLS 安全策略，保障匿名用户仅可 SELECT 读取，认证管理员才可写入)。
     *   `database/test_data.sql` (注入初始配置参数、示例成员和 3D 精美测试照片)。
-4.  导航至 **Storage** 选项，新建一个名为 **`photos`** 的 **Public Bucket**，将其 Public Access 权限开启为 True，确保照片能生成合法的 CORS 公网链接。
+4.  **存量数据库升级**：再执行一次 `database/migrations/001_settings_defaults.sql`，
+    为 `settings` 表补上 `default_scene_id` / `default_mode` / `default_layout`
+    三个落幕配置字段（幂等脚本，可重复执行）。
+5.  导航至 **Storage** 选项，新建一个名为 **`photos`** 的 **Public Bucket**，将其 Public Access 权限开启为 True，确保照片能生成合法的 CORS 公网链接。
 
 ---
 

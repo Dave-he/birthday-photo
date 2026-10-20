@@ -45,6 +45,17 @@ jobs:
           pnpm --dir apps/web install --no-frozen-lockfile
           # Install deps in admin
           pnpm --dir apps/admin install --no-frozen-lockfile
+          # Install root tooling (playwright)
+          pnpm install --no-frozen-lockfile
+
+      - name: Unit Tests
+        run: pnpm test:unit
+
+      - name: Typecheck Web App
+        run: pnpm typecheck:web
+
+      - name: Typecheck Admin App
+        run: pnpm typecheck:admin
 
       - name: Build Web App (Next.js)
         env:

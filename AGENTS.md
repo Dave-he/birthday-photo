@@ -36,6 +36,27 @@ When delegating tasks to an AI Agent or using slash commands:
 - **apps/web**: Next.js App Router. Custom R3F elements should always use the custom `useState/useEffect` asynchronous texture loaders rather than synchronous Drei suspenders to avoid CORS/404 canvas blackouts.
 - **apps/admin**: Refine framework with Ant Design. When calling `useList` or other data providers, retrieve properties safely from `photosQuery.result` (data/total) and `photosQuery.query.isLoading`.
 
+### 3D 场景资源红线（Scene Asset Rules）
+> 以下规则来自一次真实的「整个 3D 场景永久空白」事故，改动场景相关代码前必读。
+
+1. **禁止远程资源**。字体、贴图一律自托管在 `apps/web/public/` 下，路径统一由
+   `apps/web/lib/assets.ts` 导出。drei 的 `useTexture` / troika 的字体预加载在资源
+   不可达时**不会超时、不会报错**，只会永久挂起 `<Suspense>`。
+2. **会挂起的组件必须独立边界**。`Scene.tsx` 的外层 `<Suspense fallback={null}>`
+   覆盖整个场景：其中任何组件挂起 = 全场空白。请把 `<Text>`、`<Cloud>` 这类组件
+   各自包一层 `<Suspense>`，失败只影响自己。
+3. **注意 drei 的 prop 归属**。`<Cloud>` 会丢弃 `texture` prop（属于 `<Clouds>`），
+   静默回落到 CDN 默认值。需要自定义贴图请用 `<Clouds texture=…>` +
+   `<CloudInstance>`。
+4. **3D 坐标要验算视锥**。相机的 `lookAt` 是原点，`fov` 45° 时 `y > 5` 的元素
+   已经在画面之外。改标题位置后请用截图确认。
+5. **中文标题用 DOM 方案**。troika 需要为 3.4 MB 中文全字集生成 SDF，实测不可用；
+   改用 drei `<Html>` + CSS `@font-face`（见 `components/SceneTitle.tsx`）。
+6. **验证要看画面，不要只看 canvas**。`<canvas>` 存在不代表场景有内容。E2E 断言
+   标题可见（`tests/monorepo.spec.js`），并且不允许加载任何第三方图片/字体。
+7. **dev server 缓存会骗人**。改动 CSS / 资源后若行为不符预期，先 `rm -rf
+   apps/web/.next` 再重启 `next dev`，Turbopack 的增量缓存可能继续吐旧产物。
+
 ---
 
 ## Agent Autopilot & Handover

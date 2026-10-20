@@ -46,10 +46,15 @@ root/
 ├── apps/
 │   ├── admin/       # Refine + Vite (后台管理)
 │   └── web/         # Next.js + Three.js (3D 展示)
-├── packages/        # (可选) 共享配置或 UI 库
-├── pnpm-workspace.yaml
-└── package.json
+├── database/        # schema / policy / test_data / migrations
+├── scripts/         # 仓库级脚本 (dev.mjs 并行启动器)
+├── tests/           # 单元测试 + Playwright E2E
+└── package.json     # 仓库级脚本入口
 ```
+
+> 说明：两个应用各自持有独立的 `pnpm-lock.yaml` 与 `node_modules`，根目录不设
+> `pnpm-workspace.yaml`。这样任一端的依赖升级都不会牵连另一端，代价是需要
+> 分别安装——统一入口是根目录的 `pnpm install:all` 与 `pnpm dev`。
 
 ### 3.2 技术栈选型 (Tech Stack)
 
@@ -60,7 +65,7 @@ root/
 *   **功能**: 照片上传、元数据编辑 (祝福语、排序)、全局设置。
 
 #### Apps: Web (3D 展示)
-*   **框架**: [Next.js 14+ (App Router)](https://nextjs.org/)
+*   **框架**: [Next.js 16 (App Router)](https://nextjs.org/)
 *   **3D 引擎**: [Three.js](https://threejs.org/) + [React Three Fiber](https://docs.pmnd.rs/react-three-fiber)
 *   **动画**: Framer Motion
 *   **状态管理**: Zustand

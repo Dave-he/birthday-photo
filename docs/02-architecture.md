@@ -18,7 +18,7 @@ root/
 ## 2.2 技术栈选型
 
 ### 2.2.1 前台展示端 (apps/web)
-- **框架**: [Next.js 14+](https://nextjs.org/) (App Router) - 提供服务端渲染 (SSR) 和高效的路由管理。
+- **框架**: [Next.js 16](https://nextjs.org/) (App Router) - 提供服务端渲染 (SSR) 和高效的路由管理。
 - **3D 引擎**: [React Three Fiber (R3F)](https://docs.pmnd.rs/react-three-fiber) - React 生态中最流行的 Three.js 封装库。
 - **3D 辅助库**: [React Three Drei](https://github.com/pmndrs/drei) - 提供现成的 3D 组件（如 OrbitControls, Environment, Stars）。
 - **动画**: [Framer Motion](https://www.framer.com/motion/) - 用于 2D UI 的过渡动画（如弹窗、HUD）。

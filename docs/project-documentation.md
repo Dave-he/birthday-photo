@@ -35,7 +35,7 @@ root/
 ### 2.2 技术栈
 
 **前台展示端 (apps/web)**
-- **框架**: [Next.js 14+](https://nextjs.org/) (App Router)
+- **框架**: [Next.js 16](https://nextjs.org/) (App Router)
 - **3D 引擎**: [React Three Fiber (R3F)](https://docs.pmnd.rs/react-three-fiber) / Three.js
 - **UI 组件**: React Three Drei (3D 辅助库), Framer Motion (2D 动画)
 - **样式**: Tailwind CSS

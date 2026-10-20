@@ -12,10 +12,11 @@
    - 💖 **浪漫模式 (Romantic)**: 精美双人起舞模型、粉色粒子微光、爱心环绕。
    - 🎉 **派对模式 (Party)**: 绚丽烟花粒子特效、动态变色炫光。
 2. **动态多端光影与中文支持**：
-   - 注入 **ZCOOL Chinese 艺术字体** 支持，完美呈现中文场景名和欢迎语，拒绝中文字符方块乱码。
+   - 注入 **ZCOOL Chinese 艺术字体**（**自托管**于 `apps/web/public/fonts/`，不依赖 Google Fonts CDN，内网 / 离线环境同样可用），完美呈现中文场景名和欢迎语，拒绝中文字符方块乱码。
    - 包含动态彩色点光源（在场景上空缓慢运动和呼吸），令金属表面的相框、水晶玻璃材质的圣诞树产生奢华反光。
 3. **真实相册渲染与 CORS 防崩溃兜底**：
    - 采用异步 Texture 缓存加载机制，在网络延迟、404 或 CORS 跨域错误时自动降级到精美占位图，确保 3D 画布 100% 坚韧不崩溃。
+   - 场景所需的字体与贴图**全部自托管**，且每个会异步加载资源的组件都有独立加载边界——任何单个资源加载失败都**不会**导致整个场景空白。
 4. **本地 Docker Supabase 开箱即用**：
    - 项目提供一键连接本地 Docker 部署的 Supabase 环境配置文件，实现极速本地私有化数据存储。
 5. **企业级 CI/CD 流水线**：
@@ -39,7 +40,10 @@ birthday-photo/
 ├── database/           # 本地 Supabase 初始化数据库脚本
 │   ├── schema.sql
 │   ├── policy.sql
-│   └── test_data.sql
+│   ├── test_data.sql
+│   └── migrations/     # 存量数据库的增量迁移脚本
+├── scripts/            # 仓库级脚本（如一键启动双端的 dev.mjs）
+├── tests/              # 单元测试 (node:test) 与 Playwright E2E
 ├── AGENTS.md           # AI 智能体开发规范与协作指南
 ├── docker-compose.yml  # Docker 容器编排文件
 └── README.md           # 本说明文件
@@ -70,14 +74,36 @@ birthday-photo/
 2. 进入 SQL Editor，依次运行 `database/schema.sql`、`database/policy.sql` 和 `database/test_data.sql`。
 3. 进入 Storage 菜单，新建一个名为 `photos` 的 **Public Bucket**。
 
+> 已有数据库升级：再运行一次 `database/migrations/001_settings_defaults.sql`，
+> 它会幂等地补上 `default_scene_id` / `default_mode` / `default_layout` 三个落幕配置字段。
+
 ### 3. 一键开发运行
-使用 pnpm 启动所有应用：
+本仓库的两个应用各自独立安装依赖（各自持有 lockfile），根目录提供统一入口：
+
 ```bash
-pnpm install
+# 安装全部依赖（web + admin + 根目录工具链）
+pnpm install:all
+
+# 同时启动 3D 展示端与后台管理端
 pnpm dev
 ```
+
+也可以单独启动：
+
+```bash
+pnpm dev:web     # http://localhost:3000
+pnpm dev:admin   # http://localhost:5173
+```
+
 - **3D 展示前端**: [http://localhost:3000](http://localhost:3000)
-- **后台管理系统**: [http://localhost:8080](http://localhost:8080) (使用 Supabase 认证登录)
+- **后台管理系统**: [http://localhost:5173](http://localhost:5173) (使用 Supabase 认证登录；Docker 部署时为 `http://localhost:8080`)
+
+### 4. 常用校验命令
+```bash
+pnpm typecheck   # 前后端类型检查
+pnpm test:unit   # 纯逻辑单元测试 (node:test)
+pnpm build       # 双端生产构建
+```
 
 ---
 

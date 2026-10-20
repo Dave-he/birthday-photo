@@ -2,8 +2,20 @@
   "name": "birthday-photo-monorepo",
   "private": true,
   "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "pnpm --dir apps/web dev",
+    "dev:admin": "pnpm --dir apps/admin dev",
+    "build": "pnpm build:web && pnpm build:admin",
+    "build:web": "pnpm --dir apps/web build",
+    "build:admin": "pnpm --dir apps/admin build",
+    "typecheck": "pnpm typecheck:web && pnpm typecheck:admin",
+    "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit",
+    "typecheck:admin": "pnpm --dir apps/admin exec tsc --noEmit",
+    "lint:web": "pnpm --dir apps/web lint",
+    "test": "pnpm test:unit",
+    "test:unit": "node --test --experimental-strip-types --no-warnings tests/unit/*.test.ts",
     "test:e2e": "playwright test",
-    "test:unit": "node --test --experimental-strip-types --no-warnings tests/unit/*.test.ts"
+    "install:all": "pnpm --dir apps/web install && pnpm --dir apps/admin install && pnpm install"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0"
