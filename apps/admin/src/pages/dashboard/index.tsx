@@ -12,6 +12,7 @@ import {
 } from "@ant-design/icons";
 import { CONFIG } from "../../config";
 import { supabaseClient } from "../../utility/supabaseClient";
+import { STORAGE_BUCKETS } from "../../utility/storage";
 
 const { Title, Text } = Typography;
 
@@ -20,6 +21,7 @@ type ProbeState = "checking" | "ok" | "down"
 interface SystemStatus {
     api: ProbeState
     storage: ProbeState
+    musicBucket: ProbeState
 }
 
 async function probeSupabase(): Promise<SystemStatus> {
@@ -40,7 +42,7 @@ async function probeSupabase(): Promise<SystemStatus> {
     const storagePromise = (async () => {
         try {
             const { error } = await supabaseClient.storage
-                .from("photos")
+                .from(STORAGE_BUCKETS.photos)
                 .list("", { limit: 1 })
             return error ? "down" : "ok"
         } catch {
@@ -48,8 +50,25 @@ async function probeSupabase(): Promise<SystemStatus> {
         }
     })()
 
-    const [api, storage] = await Promise.all([apiPromise, storagePromise])
-    return { api, storage }
+    // The music bucket is separate from the photos bucket on purpose, so it
+    // needs its own probe - a missing one only shows up when an upload fails.
+    const musicBucketPromise = (async () => {
+        try {
+            const { error } = await supabaseClient.storage
+                .from(STORAGE_BUCKETS.music)
+                .list("", { limit: 1 })
+            return error ? "down" : "ok"
+        } catch {
+            return "down" as const
+        }
+    })()
+
+    const [api, storage, musicBucket] = await Promise.all([
+        apiPromise,
+        storagePromise,
+        musicBucketPromise,
+    ])
+    return { api, storage, musicBucket }
 }
 
 const StatusLine: React.FC<{ label: string; state: ProbeState }> = ({ label, state }) => (
@@ -72,7 +91,7 @@ const StatusLine: React.FC<{ label: string; state: ProbeState }> = ({ label, sta
 
 export const DashboardPage: React.FC = () => {
     const go = useGo();
-    const [status, setStatus] = useState<SystemStatus>({ api: "checking", storage: "checking" })
+    const [status, setStatus] = useState<SystemStatus>({ api: "checking", storage: "checking", musicBucket: "checking" })
 
     // Fetch stats
     const photosQuery = useList({
@@ -180,7 +199,15 @@ export const DashboardPage: React.FC = () => {
                             <Table.Column
                                 title="Preview"
                                 dataIndex="image_url"
-                                render={(val) => <img src={val} alt="preview" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />}
+                                render={(val, record) => (
+                                    <img
+                                        src={val}
+                                        alt={record?.title ? `Preview of ${record.title}` : "Photo preview"}
+                                        loading="lazy"
+                                        decoding="async"
+                                        style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                                    />
+                                )}
                             />
                             <Table.Column title="Title" dataIndex="title" />
                             <Table.Column title="Scene" dataIndex={["scenes", "name"]} render={v => v || '-'} />
@@ -212,7 +239,8 @@ export const DashboardPage: React.FC = () => {
 
                     <Card title="System Status" variant="borderless">
                         <StatusLine label="API (PostgREST)" state={status.api} />
-                        <StatusLine label="Storage" state={status.storage} />
+                        <StatusLine label="Storage (photos)" state={status.storage} />
+                        <StatusLine label="Storage (music)" state={status.musicBucket} />
                     </Card>
                 </Col>
             </Row>

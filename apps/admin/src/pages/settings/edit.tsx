@@ -1,6 +1,7 @@
 import { Edit, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, InputNumber, Switch, Upload, Button, message, Space, Card, Typography, Divider, Row, Col, UploadProps, Select } from "antd";
 import { useStorageUpload } from "../../utility/useStorageUpload";
+import { STORAGE_BUCKETS } from "../../utility/storage";
 import { UploadOutlined, MobileOutlined, DesktopOutlined, VideoCameraOutlined } from "@ant-design/icons";
 import {
   PERFORMANCE_PRESETS,
@@ -49,7 +50,9 @@ const PRESET_ICONS: Record<PerformancePreset, React.ReactNode> = {
 export const SettingsEdit: React.FC = () => {
     // We treat settings as a singleton, so we always try to edit the first row
     const { formProps, saveButtonProps } = useForm<SettingsFormValues>();
-    const customRequest = useStorageUpload({ bucket: "photos", prefix: "music" });
+    // Background music lives in its own bucket: the `photos` bucket only
+    // accepts image MIME types, so an MP3 uploaded there is rejected.
+    const customRequest = useStorageUpload({ bucket: STORAGE_BUCKETS.music, prefix: "track" });
 
     const { selectProps: sceneSelectProps } = useSelect({
         resource: "scenes",
@@ -66,7 +69,10 @@ export const SettingsEdit: React.FC = () => {
                 message.success("Music uploaded successfully!")
             }
         } else if (file.status === "error") {
-            message.error("Upload failed.")
+            // Surface the real reason (missing bucket, rejected MIME type,
+            // not signed in) instead of a generic "upload failed".
+            const reason = file.error instanceof Error ? file.error.message : undefined
+            message.error(reason ? `Upload failed: ${reason}` : "Upload failed.")
         }
     }
 
@@ -116,7 +122,8 @@ export const SettingsEdit: React.FC = () => {
                         </Form.Item>
 
                         <Form.Item
-                            label="Upload Music File (MP3)"
+                            label={`Upload Music File (${STORAGE_BUCKETS.music} bucket)`}
+                            help={`Audio files are stored in the "${STORAGE_BUCKETS.music}" bucket. Create it with database/storage.sql if the upload fails.`}
                         >
                             <Upload.Dragger
                                 name="file"

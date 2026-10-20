@@ -3,6 +3,7 @@ import { Form, Input, InputNumber, Checkbox, Upload, Select } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import { useCreateMany, useList } from "@refinedev/core";
 import { useStorageUpload } from "../../utility/useStorageUpload";
+import { STORAGE_BUCKETS } from "../../utility/storage";
 
 interface CreateFormValues {
   image_urls: Array<{ response?: string; url?: string }>
@@ -17,7 +18,7 @@ interface CreateFormValues {
 export const PhotoCreate: React.FC = () => {
   const { formProps, saveButtonProps } = useForm();
   const { mutate: createMany } = useCreateMany();
-  const customRequest = useStorageUpload({ bucket: "photos", prefix: "photo" });
+  const customRequest = useStorageUpload({ bucket: STORAGE_BUCKETS.photos, prefix: "photo" });
 
   // Select for Scenes
   const { selectProps: sceneSelectProps } = useSelect({

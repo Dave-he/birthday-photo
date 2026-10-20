@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import type { UploadProps } from "antd"
 import { supabaseClient } from "./supabaseClient"
+import { describeUploadError } from "./uploadErrors"
 
 export interface UseStorageUploadOptions {
   /** Storage bucket to upload into. */
@@ -49,7 +50,7 @@ export function useStorageUpload({ bucket, prefix = "file" }: UseStorageUploadOp
 
           onSuccess?.(urlData.publicUrl)
         } catch (error) {
-          onError?.(error as Error)
+          onError?.(new Error(describeUploadError(error, bucket)))
         }
       })()
     },

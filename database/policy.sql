@@ -82,8 +82,5 @@ USING (auth.role() = 'authenticated');
 -- ==========================================
 -- Storage Policies
 -- ==========================================
--- Note: Storage policies should be configured via Supabase Dashboard
--- Recommended policies for 'photos' bucket:
--- 1. Public read access: Allow SELECT for all users
--- 2. Admin upload: Allow INSERT for authenticated users
--- 3. Admin delete: Allow DELETE for authenticated users
+-- The storage object policies (public read, admin write) are created by
+-- storage.sql, together with the `photos` and `music` buckets they apply to.

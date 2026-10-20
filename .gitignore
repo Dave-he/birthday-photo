@@ -63,3 +63,7 @@ test-results/
 
 # Claude Code runtime state (scheduled_tasks.lock, etc.)
 .claude/
+
+# Python cache (font subsetting script)
+__pycache__/
+*.pyc

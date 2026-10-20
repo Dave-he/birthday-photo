@@ -2,10 +2,11 @@ import { Edit, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, InputNumber, Checkbox, Upload, Select } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import { useStorageUpload } from "../../utility/useStorageUpload";
+import { STORAGE_BUCKETS } from "../../utility/storage";
 
 export const PhotoEdit: React.FC = () => {
   const { formProps, saveButtonProps } = useForm();
-  const customRequest = useStorageUpload({ bucket: "photos", prefix: "photo" });
+  const customRequest = useStorageUpload({ bucket: STORAGE_BUCKETS.photos, prefix: "photo" });
 
   // Select for Scenes
   const { selectProps: sceneSelectProps } = useSelect({

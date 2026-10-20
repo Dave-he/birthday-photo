@@ -73,9 +73,9 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- ==========================================
--- Storage Bucket Configuration
+-- Storage Buckets
 -- ==========================================
--- Note: Storage bucket 'photos' should be created via Supabase Dashboard
--- Bucket Name: 'photos'
--- Public: true
--- Allowed MIME types: image/jpeg, image/png, image/gif, image/webp
+-- The buckets themselves (and their policies) are created by storage.sql:
+--   photos  images only  (the gallery)
+--   music   audio only   (the background track)
+-- Both are public read buckets, uploads require an authenticated admin.
