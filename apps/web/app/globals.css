@@ -8,10 +8,14 @@
  * failure — which used to leave the whole `<Suspense>` boundary pending and
  * the entire scene blank. Serving the font from our own origin removes the
  * external dependency (and works on networks where gstatic is unreachable).
+ *
+ * The shipped file is a subset (see scripts/subset-display-font.py): Latin,
+ * punctuation and the 3755 most common simplified Chinese characters. Rare
+ * characters fall back to the CJK system fonts in the stack below.
  */
 @font-face {
   font-family: "ZCOOL QingKe HuangYou";
-  src: url("/fonts/zcool-qingke-huangyou.woff") format("woff");
+  src: url("/fonts/zcool-qingke-huangyou.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;

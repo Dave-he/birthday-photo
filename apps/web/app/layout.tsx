@@ -23,7 +23,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="zh-CN">
+      <head>
+        {/* The display font is self-hosted (~900 KB subset). Preloading it
+            starts the download in parallel with the JS bundle instead of
+            after hydration. */}
+        <link
+          rel="preload"
+          href="/fonts/zcool-qingke-huangyou.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

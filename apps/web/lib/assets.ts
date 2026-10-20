@@ -12,8 +12,26 @@
  * blocked).
  */
 
-/** Display font for the 3D title (ZCOOL QingKe HuangYou). */
-export const DISPLAY_FONT_URL = '/fonts/zcool-qingke-huangyou.woff'
+/**
+ * Display font for the 3D title (ZCOOL QingKe HuangYou).
+ *
+ * A subset: the full Chinese font is ~3.3 MB, the shipped subset (Latin,
+ * punctuation and the 3755 most common simplified Chinese characters) is
+ * ~900 KB. Characters outside the subset fall back to the CJK system fonts
+ * declared in the CSS stack.
+ *
+ * Regenerate with `python3 scripts/subset-display-font.py --download <target>`.
+ */
+export const DISPLAY_FONT_URL = '/fonts/zcool-qingke-huangyou.woff2'
 
 /** Soft puff texture used by the atmospheric clouds. */
 export const CLOUD_TEXTURE_URL = '/textures/cloud.png'
+
+/**
+ * Stand-in for a photo that could not be loaded.
+ *
+ * Self-hosted on purpose: the previous fallback was a remote Unsplash URL,
+ * which fails exactly when the network is the problem - leaving the
+ * ornament blank instead of showing a placeholder.
+ */
+export const PLACEHOLDER_TEXTURE_URL = '/textures/placeholder.png'
