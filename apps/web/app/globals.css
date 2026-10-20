@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/*
+ * ZCOOL QingKe HuangYou — the display face used by the 3D title.
+ *
+ * Self-hosted on purpose: the previous hard-coded `fonts.gstatic.com` URL had
+ * gone stale (HTTP 404), and troika's font loader never calls back on
+ * failure — which used to leave the whole `<Suspense>` boundary pending and
+ * the entire scene blank. Serving the font from our own origin removes the
+ * external dependency (and works on networks where gstatic is unreachable).
+ */
+@font-face {
+  font-family: "ZCOOL QingKe HuangYou";
+  src: url("/fonts/zcool-qingke-huangyou.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -22,5 +39,12 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Keep a CJK-capable fallback so Chinese copy never renders as tofu. */
+  font-family: Arial, Helvetica, "PingFang SC", "Microsoft YaHei",
+    "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+}
+
+.font-display {
+  font-family: "ZCOOL QingKe HuangYou", "PingFang SC", "Microsoft YaHei",
+    "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
 }

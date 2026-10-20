@@ -6,16 +6,19 @@ import * as THREE from 'three'
 
 function Dancer({ color, offset, speed, radius, height }: { color: string, offset: number, speed: number, radius: number, height: number }) {
   const ref = useRef<THREE.Group>(null)
-  
+
   useFrame((state) => {
     if (ref.current) {
         const t = state.clock.elapsedTime * speed + offset
-        
+
         // Spiral motion
         const x = Math.cos(t) * radius
         const z = Math.sin(t) * radius
-        // Bobbing up and down + slowly rising/falling
-        const y = Math.sin(t * 2) * 1 + Math.sin(t * 0.5) * height + 8 // Higher up in the sky
+        // Bobbing up and down + slowly rising/falling.
+        // The base height keeps the dancers inside the camera frustum: the
+        // camera looks at the origin from y = 2 with a 45° fov, so anything
+        // above y ≈ 4.5 is rendered off-screen.
+        const y = Math.sin(t * 2) * 1 + Math.sin(t * 0.5) * height + 1.8
 
         ref.current.position.set(x, y, z)
     }
@@ -38,10 +41,10 @@ export default function DancingCouple() {
   return (
     <group>
       {/* Dancer 1 - Blue/Cyan */}
-      <Dancer color="#00ffff" offset={0} speed={1} radius={4} height={2} />
-      
+      <Dancer color="#00ffff" offset={0} speed={1} radius={4} height={1.4} />
+
       {/* Dancer 2 - Pink/Magenta */}
-      <Dancer color="#ff00ff" offset={Math.PI} speed={1} radius={4} height={2} />
+      <Dancer color="#ff00ff" offset={Math.PI} speed={1} radius={4} height={1.4} />
     </group>
   )
 }

@@ -1,8 +1,10 @@
 'use client'
-import { Sparkles, Cloud } from '@react-three/drei'
+import { Suspense } from 'react'
+import { Sparkles, CloudInstance, Clouds } from '@react-three/drei'
 import Balloons from './Balloons'
 import Fireworks from './Fireworks'
 import MagicParticles from './MagicParticles'
+import { CLOUD_TEXTURE_URL } from '@/lib/assets'
 import type { Settings, SceneMode } from '@/types'
 
 interface SceneEffectsProps {
@@ -103,12 +105,35 @@ export default function SceneEffects({ mode, settings, particleMultiplier = 1, l
                 <Fireworks count={particleSettings.fireworks.count} />
             )}
 
-            {/* Floating Clouds for atmosphere */}
+            {/* Floating Clouds for atmosphere
+                *
+                * `<Cloud>` is only a thin wrapper that renders `<Clouds>` +
+                * `<CloudInstance>`; the texture prop lives on `<Clouds>`. The
+                * wrapper drops it, so the CDN default from drei would be
+                * requested instead — and `useTexture` suspends forever when
+                * that CDN is unreachable, which used to blank the whole scene.
+                * The texture is therefore self-hosted, and the cloud sits in
+                * its own Suspense boundary so a texture problem can never
+                * take the gallery down. */}
             {particleSettings.clouds.show && (
-                <>
-                    <Cloud position={[-8, -2, -5]} speed={0.4} opacity={0.6} segments={particleSettings.clouds.segments} color="#a0c4ff" />
-                    <Cloud position={[8, -2, -5]} speed={0.4} opacity={0.6} segments={particleSettings.clouds.segments} color="#ffc4d6" />
-                </>
+                <Suspense fallback={null}>
+                    <Clouds texture={CLOUD_TEXTURE_URL}>
+                        <CloudInstance
+                            position={[-8, -2, -5]}
+                            speed={0.4}
+                            opacity={0.6}
+                            segments={particleSettings.clouds.segments}
+                            color="#a0c4ff"
+                        />
+                        <CloudInstance
+                            position={[8, -2, -5]}
+                            speed={0.4}
+                            opacity={0.6}
+                            segments={particleSettings.clouds.segments}
+                            color="#ffc4d6"
+                        />
+                    </Clouds>
+                </Suspense>
             )}
         </>
     )

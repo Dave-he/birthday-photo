@@ -1,28 +1,40 @@
 'use client'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Float, Text, PerformanceMonitor, Stats } from '@react-three/drei'
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { OrbitControls, Float, PerformanceMonitor, Stats } from '@react-three/drei'
+import { useCallback, useEffect, useMemo, useState, useRef, Suspense } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useStore } from '@/hooks/useStore'
 import { useRealtime } from '@/hooks/useRealtime'
 import { useAutoMode } from '@/hooks/useAutoMode'
 import { Photo } from '@/types'
 import { PALETTES, getSceneTitle } from '@/lib/palettes'
 import { getAdaptiveDpr, getAdaptiveEventsConfig } from '@/lib/adaptive'
+import { DISPLAY_FONT_URL } from '@/lib/assets'
 
 // Components
 import SceneEnvironment from './SceneEnvironment'
 import SceneEffects from './SceneEffects'
 import SceneContent from './SceneContent'
 import SceneHUD from './SceneHUD'
+import SceneTitle from './SceneTitle'
 import Overlay from './Overlay'
 import PhotoModal from './PhotoModal'
 import PostProcessing from './PostProcessing'
 
 export default function Scene() {
   const {
-      photos, scenes, settings, currentSceneId, isLoading,
+      photos, scenes, settings, currentSceneId, isLoading, error,
       fetchInitialData, setCurrentSceneId
-  } = useStore()
+  } = useStore(useShallow((state) => ({
+      photos: state.photos,
+      scenes: state.scenes,
+      settings: state.settings,
+      currentSceneId: state.currentSceneId,
+      isLoading: state.isLoading,
+      error: state.error,
+      fetchInitialData: state.fetchInitialData,
+      setCurrentSceneId: state.setCurrentSceneId,
+  })))
 
   useRealtime()
 
@@ -51,7 +63,9 @@ export default function Scene() {
     if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search)
         const sceneId = params.get('sceneId')
-        
+
+        // `fetchInitialData` swallows backend errors into the store's `error`
+        // field, so the scene keeps rendering even when Supabase is down.
         fetchInitialData().then(() => {
             if (sceneId) {
                 setCurrentSceneId(sceneId)
@@ -96,6 +110,24 @@ export default function Scene() {
     setIsPlaying(!isPlaying)
   }
 
+  // Browse the open gallery with the arrow keys / the modal's prev-next buttons.
+  const stepPhoto = useCallback((delta: number) => {
+    setSelectedPhoto((current) => {
+      if (!current || photos.length === 0) return current
+      const index = photos.findIndex((photo) => photo.id === current.id)
+      if (index === -1) return current
+      const nextIndex = (index + delta + photos.length) % photos.length
+      return photos[nextIndex]
+    })
+  }, [photos])
+
+  const selectedPosition = useMemo(() => {
+    if (!selectedPhoto) return null
+    const index = photos.findIndex((photo) => photo.id === selectedPhoto.id)
+    if (index === -1) return null
+    return { index: index + 1, total: photos.length }
+  }, [selectedPhoto, photos])
+
   const title = getSceneTitle(mode, scenes, currentSceneId, settings)
 
   return (
@@ -103,7 +135,9 @@ export default function Scene() {
       <Overlay 
          onStart={handleStart} 
          isLoading={isLoading} 
-         title={settings?.greeting_title || "Merry Christmas!"} 
+         title={settings?.greeting_title || "Merry Christmas!"}
+         error={error}
+         onRetry={fetchInitialData}
       />
 
       {/* 2D HUD Layer */}
@@ -133,12 +167,18 @@ export default function Scene() {
             background: `linear-gradient(to bottom, ${currentPalette.bg[0]}, ${currentPalette.bg[1]})`
         }}
       >
-        <Canvas 
-          camera={{ position: [0, 2, 14], fov: 45 }} 
+        <Canvas
+          className="scene-canvas"
+          camera={{ position: [0, 2, 14], fov: 45 }}
           gl={{ antialias: false }} 
           dpr={adaptiveDpr}
           shadows={!isLow}
-          frameloop={isLow ? 'demand' : 'always'}
+          // The scene is fully animation-driven: every ornament, balloon,
+          // particle and the auto-rotation run inside `useFrame`. A `demand`
+          // frameloop only renders on invalidate, which freezes the whole
+          // scene in low-quality mode. Quality is instead controlled through
+          // DPR, shadows, particle counts and input damping.
+          frameloop="always"
         >
           <Suspense fallback={null}>
             {/* Dev Performance Stats */}
@@ -181,28 +221,20 @@ export default function Scene() {
                 galleryLayout={galleryLayout} 
             />
 
-            {/* Floating 3D Text */}
-            <Float speed={4} rotationIntensity={0.5} floatIntensity={1} floatingRange={[0, 1]}>
-                <Text
-                    fontSize={1.5}
+            {/* Floating 3D Title
+                *
+                * Rendered as a DOM overlay anchored in 3D space rather than a
+                * troika mesh: troika has to build SDF glyphs for the whole
+                * 3.4 MB Chinese font and never reports failures back to
+                * React, so a slow or unreachable font suspended the title
+                * forever — and, while it shared the outer Suspense boundary,
+                * it blanked the entire scene. */}
+            <Float speed={4} rotationIntensity={0.2} floatIntensity={1} floatingRange={[0, 0.6]}>
+                <SceneTitle
+                    title={title}
                     color={currentPalette.text}
-                    position={[0, 6.5, 0]}
-                    anchorX="center"
-                    anchorY="middle"
-                    outlineWidth={0.04}
-                    outlineColor={currentPalette.accent}
-                    maxWidth={10}
-                    textAlign="center"
-                    font="https://fonts.gstatic.com/s/zcoolqingkehuangyou/v5/nqyJcc1t_c2bVf5t3-8k9BdfGv1C7G_A.woff"
-                >
-                    {title}
-                    <meshStandardMaterial 
-                        emissive={currentPalette.accent} 
-                        emissiveIntensity={2} 
-                        toneMapped={false} 
-                        color={currentPalette.text}
-                    />
-                </Text>
+                    accent={currentPalette.accent}
+                />
             </Float>
 
             {/* Post Processing - Adaptive quality based on performance */}
@@ -215,6 +247,9 @@ export default function Scene() {
       <PhotoModal 
         selectedPhoto={selectedPhoto}
         onClose={() => setSelectedPhoto(null)}
+        onNext={photos.length > 1 ? () => stepPhoto(1) : undefined}
+        onPrev={photos.length > 1 ? () => stepPhoto(-1) : undefined}
+        position={selectedPosition}
       />
     </>
   )
