@@ -6,9 +6,31 @@ interface OverlayProps {
   onStart: () => void
   isLoading: boolean
   title: string
+  /** Set when the initial data load failed — the scene still runs, the gallery is empty. */
+  error?: string | null
+  onRetry?: () => void
 }
 
-export default function Overlay({ onStart, isLoading, title }: OverlayProps) {
+/** Inline icons — the web client ships no icon library on purpose. */
+function WarningIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 8v5M12 16.5h.01" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ReloadIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden="true">
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" strokeLinecap="round" />
+      <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export default function Overlay({ onStart, isLoading, title, error, onRetry }: OverlayProps) {
   const [started, setStarted] = useState(false)
 
   const handleStart = () => {
@@ -46,6 +68,36 @@ export default function Overlay({ onStart, isLoading, title }: OverlayProps) {
               A 3D journey through our cherished moments. 
               <br/>Put on your headphones for the best experience.
             </motion.p>
+
+            {/* Backend unreachable — the 3D scene still works, only the gallery is empty. */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                role="alert"
+                className="max-w-md rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left text-sm text-amber-100 backdrop-blur-md"
+              >
+                <div className="flex items-start gap-2">
+                  <WarningIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <div>
+                    <p className="font-medium text-amber-200">Photo server unavailable</p>
+                    <p className="mt-1 text-amber-100/80">{error}</p>
+                    <p className="mt-1 text-amber-100/60">
+                      You can still explore the scene — the photo gallery will be empty until the server is back.
+                    </p>
+                  </div>
+                </div>
+                {onRetry && (
+                  <button
+                    onClick={onRetry}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-400/40 px-3 py-1.5 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-400/20"
+                  >
+                    <ReloadIcon className="h-3.5 w-3.5" /> Retry
+                  </button>
+                )}
+              </motion.div>
+            )}
 
             {isLoading ? (
               <motion.div 

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { dataService } from '@/lib/dataService'
+import { describeLoadError, resolveInitialSceneId } from '@/lib/loadState'
 import { Photo, Scene, Settings } from '@/types'
 
 interface AppState {
@@ -8,20 +9,26 @@ interface AppState {
   settings: Settings | null
   currentSceneId: string | null
   isLoading: boolean
-  
+  /**
+   * Set when the initial load failed. The 3D scene keeps running with an empty
+   * gallery — the visitor is never trapped on the loading screen.
+   */
+  error: string | null
+
   // Actions
   fetchInitialData: () => Promise<void>
   fetchPhotos: (sceneId: string | null) => Promise<void>
   setCurrentSceneId: (id: string | null) => void
-  
+  clearError: () => void
+
   // Realtime Actions (called by subscription)
   setPhotos: (photos: Photo[]) => void
   updatePhoto: (photo: Photo) => void
   addPhoto: (photo: Photo) => void
   removePhoto: (id: string) => void
-  
+
   setSettings: (settings: Settings) => void
-  
+
   setScenes: (scenes: Scene[]) => void
   addScene: (scene: Scene) => void
   updateScene: (scene: Scene) => void
@@ -34,38 +41,49 @@ export const useStore = create<AppState>((set, get) => ({
   settings: null,
   currentSceneId: null,
   isLoading: true,
+  error: null,
 
   fetchInitialData: async () => {
-    set({ isLoading: true })
-    
-    // Fetch Scenes
-    const { data: scenes } = await dataService.getScenes()
-    
-    // Fetch Settings
-    const settings = await dataService.getSettings()
+    set({ isLoading: true, error: null })
 
-    set({ 
-        scenes: scenes || [], 
+    try {
+      // Fetch Scenes
+      const { data: scenes } = await dataService.getScenes()
+
+      // Fetch Settings
+      const settings = await dataService.getSettings()
+
+      // The scene saved as `default_scene_id` wins, otherwise use the first one.
+      const initialSceneId = resolveInitialSceneId(settings, scenes)
+
+      set({
+        scenes: scenes || [],
         settings: settings || null,
-        // If we have scenes, default to first one, else null
-        currentSceneId: scenes && scenes.length > 0 ? scenes[0].id : null,
-        isLoading: false
-    })
+        currentSceneId: initialSceneId,
+        isLoading: false,
+        error: null,
+      })
 
-    // Fetch Photos for the initial scene
-    await get().fetchPhotos(get().currentSceneId)
+      // Fetch Photos for the initial scene
+      await get().fetchPhotos(initialSceneId)
+    } catch (error) {
+      // A failed backend must not break the 3D experience: keep the scene
+      // alive with an empty gallery and surface the reason in the overlay.
+      console.error('Failed to load initial data:', error)
+      set({
+        isLoading: false,
+        error: describeLoadError(error),
+      })
+    }
   },
 
   fetchPhotos: async (sceneId) => {
-    const { data } = await dataService.getPhotos()
-    
-    // Filter photos by scene if sceneId is provided
-    const filteredPhotos = sceneId 
-      ? data.filter(photo => photo.scene_id === sceneId)
-      : data
-
-    if (filteredPhotos) {
-        set({ photos: filteredPhotos })
+    try {
+      const { data } = await dataService.getPhotos(sceneId)
+      set({ photos: data ?? [] })
+    } catch (error) {
+      console.error('Failed to load photos:', error)
+      set({ photos: [], error: describeLoadError(error) })
     }
   },
 
@@ -73,6 +91,8 @@ export const useStore = create<AppState>((set, get) => ({
       set({ currentSceneId: id })
       get().fetchPhotos(id)
   },
+
+  clearError: () => set({ error: null }),
 
   // Realtime Helpers
   setPhotos: (photos) => set({ photos }),

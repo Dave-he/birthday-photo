@@ -48,6 +48,16 @@ export interface Settings {
   snow_density: number;
   is_snowing: boolean;
   greeting_title: string;
+  /**
+   * Scene the gallery opens on. Written by the 3D HUD "Save Configuration"
+   * button and by the admin panel. `null` means "fall back to the first
+   * scene returned by the backend".
+   */
+  default_scene_id?: string | null;
+  /** Visual mode the scene starts in. */
+  default_mode?: string | null;
+  /** Gallery layout the scene starts in. */
+  default_layout?: string | null;
   auto_mode_cycle_enabled?: boolean;
   mode_cycle_min_seconds?: number;
   mode_cycle_max_seconds?: number;
