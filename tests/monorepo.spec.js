@@ -1,5 +1,12 @@
 const { test, expect } = require('@playwright/test');
 
+/**
+ * The admin panel runs on Vite's default dev port (5173). The Docker image
+ * serves the production build on 8080 — override with E2E_ADMIN_URL when
+ * running the suite against a containerised admin.
+ */
+const ADMIN_URL = process.env.E2E_ADMIN_URL || 'http://localhost:5173';
+
 test.describe('Birthday Photo - 3D Electronic Gallery E2E Tests', () => {
 
   test('should successfully load the 3D Front-end Exhibition', async ({ page }) => {
@@ -12,16 +19,28 @@ test.describe('Birthday Photo - 3D Electronic Gallery E2E Tests', () => {
     console.log('Overlay Welcome title loaded successfully.');
 
     // 2. Click Enter Experience
+    //    The button only appears once the initial load settled (either the
+    //    gallery loaded or the backend turned out to be unreachable), so wait
+    //    for it instead of racing the spinner.
     const enterButton = page.locator('button:has-text("ENTER EXPERIENCE")');
-    if (await enterButton.isVisible()) {
-      await enterButton.click();
-      console.log('Clicked "ENTER EXPERIENCE" successfully.');
-    }
+    await expect(enterButton).toBeVisible({ timeout: 20000 });
+    await enterButton.click();
+    console.log('Clicked "ENTER EXPERIENCE" successfully.');
 
     // 3. Verify 3D Canvas
-    const canvas = page.locator('canvas');
+    const canvas = page.locator('.scene-canvas canvas');
     await expect(canvas).toBeVisible({ timeout: 10000 });
     console.log('3D WebGL Canvas successfully compiled and rendered on screen!');
+
+    // 3b. Verify the scene actually has content.
+    //     A visible <canvas> proves nothing — a blank scene also has a canvas.
+    //     The floating title is rendered inside the R3F tree, so it only
+    //     appears once the scene graph has committed. This is the regression
+    //     guard for the "one unreachable asset blanked the whole gallery" bug.
+    const sceneTitle = page.locator('.font-display');
+    await expect(sceneTitle).toBeVisible({ timeout: 15000 });
+    await expect(sceneTitle).not.toBeEmpty();
+    console.log(`Scene title rendered: "${await sceneTitle.innerText()}"`);
 
     // 4. Verify HUD Controls
     const hudContainer = page.locator('.bg-black\\/30.backdrop-blur-xl');
@@ -29,9 +48,56 @@ test.describe('Birthday Photo - 3D Electronic Gallery E2E Tests', () => {
     console.log('HUD Glassmorphism panel verified on screen.');
   });
 
+  test('should keep the 3D scene reachable when the photo server is down', async ({ page }) => {
+    // The gallery is optional: a Supabase outage must not trap the visitor on
+    // the loading screen. The scene has to render (and stay enterable) anyway.
+    await page.route('**/rest/v1/**', (route) => route.abort());
+
+    await page.goto('/');
+
+    const title = page.locator('h1');
+    await expect(title).toBeVisible();
+
+    const enterButton = page.locator('button:has-text("ENTER EXPERIENCE")');
+    await expect(enterButton).toBeVisible({ timeout: 15000 });
+    await enterButton.click();
+
+    await expect(page.locator('.scene-canvas canvas')).toBeVisible({ timeout: 10000 });
+
+    // The 3D scene must still be there — a dead backend is not allowed to
+    // take the gallery down with it.
+    await expect(page.locator('.font-display')).toBeVisible({ timeout: 15000 });
+    console.log('Degraded mode still renders the 3D scene without a backend.');
+  });
+
+  test('should load every scene asset from the app origin', async ({ page }) => {
+    // Remote assets (fonts, textures) are the classic way a 3D scene ends up
+    // blank: a blocked CDN suspends the loader forever. Every asset the scene
+    // needs must be served by the app itself. Data requests to the Supabase
+    // API are expected and not covered by this check.
+    const externalAssets = [];
+    page.on('request', (request) => {
+      const url = request.url();
+      if (url.startsWith('blob:') || url.startsWith('data:')) return;
+      const { hostname } = new URL(url);
+      if (hostname === 'localhost' || hostname === '127.0.0.1') return;
+      const type = request.resourceType();
+      if (type === 'image' || type === 'font' || type === 'stylesheet' || type === 'media') {
+        externalAssets.push(url);
+      }
+    });
+
+    await page.goto('/');
+    await page.locator('button:has-text("ENTER EXPERIENCE")').waitFor({ timeout: 20000 });
+    await page.locator('button:has-text("ENTER EXPERIENCE")').click();
+    await expect(page.locator('.font-display')).toBeVisible({ timeout: 15000 });
+
+    expect(externalAssets).toEqual([]);
+  });
+
   test('should successfully load the Refine Admin Panel', async ({ page }) => {
     // Navigate to Admin dashboard
-    await page.goto('http://localhost:8080/');
+    await page.goto(`${ADMIN_URL}/`);
 
     // Check dashboard loads (Refine has specific panels or login indicators)
     const body = page.locator('body');
